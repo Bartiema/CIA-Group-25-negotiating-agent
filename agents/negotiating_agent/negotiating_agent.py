@@ -30,10 +30,7 @@ from tudelft_utilities_logging.ReportToLogger import ReportToLogger
 from .utils.opponent_model import OpponentModel
 
 
-class TemplateAgent(DefaultParty):
-    """
-    Template of a Python geniusweb agent.
-    """
+class NegotiatingAgent(DefaultParty):
 
     def __init__(self):
         super().__init__()
@@ -137,7 +134,7 @@ class TemplateAgent(DefaultParty):
         Returns:
             str: Agent description
         """
-        return "Template agent for the ANL 2022 competition"
+        return "Negotiating agent by Group 25"
 
     def opponent_action(self, action):
         """Process an action that was received from the opponent.
