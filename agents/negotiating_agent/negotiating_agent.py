@@ -48,6 +48,7 @@ class NegotiatingAgent(DefaultParty):
         self.last_received_bid: Bid = None
         self.opponent_model: OpponentModel = None
         self.logger.log(logging.INFO, "party is initialized")
+        self.previous_offer_util = 0.0
 
     def notifyChange(self, data: Inform):
         """MUST BE IMPLEMENTED
@@ -58,7 +59,7 @@ class NegotiatingAgent(DefaultParty):
             info (Inform): Contains either a request for action or information.
         """
 
-        # a Settings message is the first message that will be send to your
+        # a Settings message is the first message that will be sent to your
         # agent containing all the information about the negotiation session.
         if isinstance(data, Settings):
             self.settings = cast(Settings, data)
@@ -96,7 +97,7 @@ class NegotiatingAgent(DefaultParty):
             # execute a turn
             self.my_turn()
 
-        # Finished will be send if the negotiation has ended (through agreement or deadline)
+        # Finished will be sent if the negotiation has ended (through agreement or deadline)
         elif isinstance(data, Finished):
             self.save_data()
             # terminate the agent MUST BE CALLED
@@ -200,21 +201,63 @@ class NegotiatingAgent(DefaultParty):
         return all(conditions)
 
     def find_bid(self) -> Bid:
-        # compose a list of all possible bids
+        # compose a list of all possible bids that have the best h value
+
+        best_bids = self.find_bids()
+
+        # within the best bids option, find the one with the least difference with the previous received bid
+        least_h = 100000
+        best_bid = None
+        for bid in best_bids:
+            # calculate best bid
+            # calculate difference with prev received bid
+            bid_diff = self.opponent_model.get_predicted_utility(bid)
+            if bid_diff < least_h:
+                least_h = bid_diff
+                best_bid = bid
+
+        bid_score = self.score_bid(best_bid)
+        self.previous_offer_util = bid_score
+        print(best_bid, "this bid score = ", bid_score)
+        return best_bid
+
+    def find_bids(self) -> [Bid]:
+        # compose a list of all possible bids that have the same heuristic score as the previous bid
         domain = self.profile.getDomain()
         all_bids = AllBidsList(domain)
 
+        prev_bid_h = 0.0
+        best_bids = []
         best_bid_score = 0.0
         best_bid = None
 
-        # take 500 attempts to find a bid according to a heuristic score
-        for _ in range(500):
-            bid = all_bids.get(randint(0, all_bids.size() - 1))
-            bid_score = self.score_bid(bid)
-            if bid_score > best_bid_score:
-                best_bid_score, best_bid = bid_score, bid
+        if prev_bid_h == 0.0:
+            # we have not done a previous offer, so we initialise with the best option for us
 
-        return best_bid
+            # take 500 attempts to find a bid according to a heuristic score
+            for _ in range(500):
+                bid = all_bids.get(randint(0, all_bids.size() - 1))
+                bid_score = self.score_bid(bid)
+                if bid_score > best_bid_score:
+                    best_bid_score, best_bid = bid_score, bid
+            best_bids.append(best_bid)
+            return best_bids
+        else:
+            # Else we find every offer with the same heuristic as the previous offer
+            # we still take 500 attempts
+            # if there are no bids with the same heuristic, make 0.05 concession
+            while len(best_bids) == 0:
+
+                for _ in range(500):
+                    bid = all_bids.get(randint(0, all_bids.size() - 1))
+                    bid_score = self.score_bid(bid)
+                    if bid_score == prev_bid_h:
+                        best_bids.append(bid)
+
+                if len(best_bids) == 0:
+                    prev_bid_h -= 0.05
+
+            return best_bids
 
     def score_bid(self, bid: Bid, alpha: float = 0.95, eps: float = 0.1) -> float:
         """Calculate heuristic score for a bid
