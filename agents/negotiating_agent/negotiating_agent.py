@@ -159,15 +159,14 @@ class NegotiatingAgent(DefaultParty):
         """This method is called when it is our turn. It should decide upon an action
         to perform and send this action to the opponent.
         """
+        # if not, find a bid to propose as counter offer
+        bid = self.find_bid()
+        action = Offer(self.me, bid)
+
         # check if the last received offer is good enough
-        if self.accept_condition(self.last_received_bid):
+        if self.accept_condition(self.last_received_bid, bid):
             # if so, accept the offer
             action = Accept(self.me, self.last_received_bid)
-        else:
-            # if not, find a bid to propose as counter offer
-            bid = self.find_bid()
-            action = Offer(self.me, bid)
-
         # send the action
         self.send_action(action)
 
@@ -184,20 +183,38 @@ class NegotiatingAgent(DefaultParty):
     ################################## Example methods below ##################################
     ###########################################################################################
 
-    def accept_condition(self, bid: Bid) -> bool:
+    def accept_condition(self, bid: Bid, next_bid: Bid) -> bool:
         if bid is None:
             return False
 
+        alpha = 0.8
         # progress of the negotiation session between 0 and 1 (1 is deadline)
         progress = self.progress.get(time() * 1000)
 
-        # very basic approach that accepts if the offer is valued above 0.7 and
-        # 95% of the time towards the deadline has passed
-        conditions = [
-            self.profile.getUtility(bid) > 0.8,
-            progress > 0.95,
-        ]
-        return all(conditions)
+        # check if the offer is valued above the max value between alpha and the reservation value
+        ac_const = False
+        reservation = self.profile.getUtility(self.profile.getReservationBid()) if self.profile.getReservationBid() is not None else alpha
+        if self.profile.getUtility(bid) >= max(alpha, reservation):
+            ac_const = True
+
+        # check if the bid is better than the next bid the opponent might make
+        ac_next = True
+        if bid is not None:
+            ac_next = self.profile.getUtility(bid) >= self.profile.getUtility(next_bid)
+        else:
+            ac_next = False
+
+        # check if 95% of the time has passed
+        ac_time = True
+        if progress > 0.95:
+            ac_time = True
+        else:
+            ac_time = False
+
+        # ac_combi = true if ac_next or ac_time are true and if ac_const is true
+        ac_combi = ac_next or ac_time and ac_const
+
+        return ac_combi
 
     def find_bid(self) -> Bid:
         # compose a list of all possible bids
