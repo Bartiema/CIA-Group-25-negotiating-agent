@@ -187,33 +187,31 @@ class NegotiatingAgent(DefaultParty):
         if bid is None:
             return False
 
-        alpha = 0.8
         # progress of the negotiation session between 0 and 1 (1 is deadline)
         progress = self.progress.get(time() * 1000)
 
         # check if the offer is valued above the max value between alpha and the reservation value
-        ac_const = False
+        alpha = 0.8
         reservation = self.profile.getUtility(self.profile.getReservationBid()) if self.profile.getReservationBid() is not None else alpha
         if self.profile.getUtility(bid) >= max(alpha, reservation):
             ac_const = True
+        else:
+            ac_const = False
 
         # check if the bid is better than the next bid the opponent might make
-        ac_next = True
-        if bid is not None:
+        if next_bid is not None:
             ac_next = self.profile.getUtility(bid) >= self.profile.getUtility(next_bid)
         else:
             ac_next = False
 
-        # check if 95% of the time has passed
-        ac_time = True
-        if progress > 0.95:
+        # check if 98% of the time has passed
+        if progress > 0.98:
             ac_time = True
         else:
             ac_time = False
 
         # ac_combi = true if ac_next or ac_time are true and if ac_const is true
-        ac_combi = ac_next or ac_time and ac_const
-
+        ac_combi = (ac_next or ac_time) and ac_const
         return ac_combi
 
     def find_bid(self) -> Bid:
