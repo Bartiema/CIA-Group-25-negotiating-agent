@@ -159,14 +159,15 @@ class NegotiatingAgent(DefaultParty):
         """This method is called when it is our turn. It should decide upon an action
         to perform and send this action to the opponent.
         """
-        # if not, find a bid to propose as counter offer
         bid = self.find_bid()
-        action = Offer(self.me, bid)
-
         # check if the last received offer is good enough
         if self.accept_condition(self.last_received_bid, bid):
             # if so, accept the offer
             action = Accept(self.me, self.last_received_bid)
+        else:
+            # if not, find a bid to propose as counter offer
+            bid = self.find_bid()
+            action = Offer(self.me, bid)
         # send the action
         self.send_action(action)
 
@@ -198,7 +199,7 @@ class NegotiatingAgent(DefaultParty):
         else:
             ac_const = False
 
-        # check if the bid is better than the next bid the opponent might make
+        # check if the bid is better than upcoming bid
         if next_bid is not None:
             ac_next = self.profile.getUtility(bid) >= self.profile.getUtility(next_bid)
         else:
