@@ -52,11 +52,13 @@ class NegotiatingAgent(DefaultParty):
         self.opponent_model: OpponentModel = None
         self.logger.log(logging.INFO, "party is initialized")
 
-        self.reservation_value: float = 0.5
+        self.lowest_bid: float = 1.0
+        self.reservation_value: float = 0.6
         self.bids = None
         self.scores = None
         self.opponent_scores = None
         self.arg_sort = None
+        self.count = 0
 
     def notifyChange(self, data: Inform):
         """MUST BE IMPLEMENTED
@@ -203,7 +205,7 @@ class NegotiatingAgent(DefaultParty):
         # check if the offer is valued above the max value between alpha and the reservation value
         alpha = 0.8
         reservation = self.profile.getUtility(self.profile.getReservationBid()) if self.profile.getReservationBid() is not None else alpha
-        if self.profile.getUtility(bid) >= max(alpha, reservation):
+        if self.profile.getUtility(bid) >= min(self.lowest_bid + 0.05, alpha):
             ac_const = True
         else:
             ac_const = False
@@ -227,8 +229,12 @@ class NegotiatingAgent(DefaultParty):
     def random_bid_generator(self, n: int):
         domain = self.profile.getDomain()
         all_bids = AllBidsList(domain)
+        to_go = list(range(all_bids.size()))
         for _ in range(n):
-            yield all_bids.get(randint(0, all_bids.size() - 1))
+            if len(to_go) == 0:
+                break
+            index = randint(0, len(to_go)-1)
+            yield all_bids.get(to_go.pop(index))
 
     def find_bid(self) -> Bid:
 
@@ -236,18 +242,19 @@ class NegotiatingAgent(DefaultParty):
 
         if self.bids is None:
             generator = self.random_bid_generator(10000)
-            bid_val = [(bid, self.profile.getUtility(bid)) for bid in generator if self.profile.getUtility(bid) > self.reservation_value]
+            bid_val = [(bid, float(self.profile.getUtility(bid))) for bid in generator if self.profile.getUtility(bid) > self.reservation_value]
             self.bids = np.array([x[0] for x in bid_val])
             self.scores = np.array([x[1] for x in bid_val])
-
-            self.arg_sort = np.argsort(self.scores)[:len(self.bids)//5]
+            self.arg_sort = np.where(self.scores > 0.9)
+            if len(self.arg_sort) < 10:
+                self.arg_sort = np.flip(np.argsort(self.scores))[:50]
 
         # first halve we just model the opponent, so we only propose valid bids for us
-        if progress < 0.8:
+        if progress < 0.85:
             return self.bids[np.random.choice(self.arg_sort)]
         else:
-
-            if self.opponent_scores is None:
+            self.count += 1
+            if self.opponent_scores is None or self.count % 20 == 0:
                 self.opponent_scores = np.array([self.opponent_model.get_predicted_utility(bid) for bid in self.bids])
 
             # Get the indices of the bids we care about
@@ -255,10 +262,13 @@ class NegotiatingAgent(DefaultParty):
             # get the argmax, this argmax bids[bids_we_care_about[argmax_of_opponent_scores]]
 
             upper_thresh = 0.99 if self.last_proposed_bid is None else float(self.profile.getUtility(self.last_proposed_bid))
-            indices_we_care_about = np.where((upper_thresh+0.05 > self.scores) & (self.scores > upper_thresh-0.05))[0]
+            delta = 0.05
+            indices_we_care_about = np.where((upper_thresh+delta > self.scores) & (self.scores > upper_thresh-delta))[0]
             if len(indices_we_care_about) == 0:
                 # this is a failsafe on the off chance that upper_thresh is too high with no known last bid.
                 return self.bids[np.random.choice(self.arg_sort)]
             possible_utilities_for_the_opponent = self.opponent_scores[indices_we_care_about]
-            return self.bids[indices_we_care_about[np.argmax(possible_utilities_for_the_opponent)]]
+            final_index = indices_we_care_about[np.random.choice(np.flip(np.argsort(possible_utilities_for_the_opponent))[:5])]
+            self.lowest_bid = min(self.lowest_bid, self.scores[final_index])
+            return self.bids[final_index]
 
