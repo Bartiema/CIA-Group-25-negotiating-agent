@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import numpy.ma as mask
 from random import randint
 from time import time
 from typing import cast
@@ -50,6 +51,12 @@ class NegotiatingAgent(DefaultParty):
         self.last_received_bid: Bid = None
         self.opponent_model: OpponentModel = None
         self.logger.log(logging.INFO, "party is initialized")
+
+        self.reservation_value: float = 0.5
+        self.bids = None
+        self.scores = None
+        self.opponent_scores = None
+        self.arg_sort = None
 
     def notifyChange(self, data: Inform):
         """MUST BE IMPLEMENTED
@@ -168,7 +175,6 @@ class NegotiatingAgent(DefaultParty):
             action = Accept(self.me, self.last_received_bid)
         else:
             # if not, find a bid to propose as counter offer
-            bid = self.find_bid()
             action = Offer(self.me, bid)
         # send the action
         self.last_proposed_bid = bid
@@ -218,76 +224,41 @@ class NegotiatingAgent(DefaultParty):
         ac_combi = (ac_next or ac_time) and ac_const
         return ac_combi
 
-    def find_bid(self) -> Bid:
-        # compose a list of all possible bids
+    def random_bid_generator(self, n: int):
         domain = self.profile.getDomain()
         all_bids = AllBidsList(domain)
+        for _ in range(n):
+            yield all_bids.get(randint(0, all_bids.size() - 1))
 
-        # best_bid_score = 0.0
-        # best_bid = None
+    def find_bid(self) -> Bid:
 
         progress = self.progress.get(time() * 1000)  # 0.9
 
-        og_bids = [all_bids.get(randint(0, all_bids.size() - 1)) for _ in range(1000)]
+        if self.bids is None:
+            generator = self.random_bid_generator(10000)
+            bid_val = [(bid, self.profile.getUtility(bid)) for bid in generator if self.profile.getUtility(bid) > self.reservation_value]
+            self.bids = np.array([x[0] for x in bid_val])
+            self.scores = np.array([x[1] for x in bid_val])
 
-        reservation_value = self.profile.getUtility(self.profile.getReservationBid()) if self.profile.getReservationBid() is not None else 0.5
+            self.arg_sort = np.argsort(self.scores)[:len(self.bids)//5]
 
-        # first halve we just model the opponent
+        # first halve we just model the opponent, so we only propose valid bids for us
         if progress < 0.8:
-            return og_bids[np.argmax([self.profile.getUtility(bid) for bid in og_bids])]
+            return self.bids[np.random.choice(self.arg_sort)]
         else:
 
+            if self.opponent_scores is None:
+                self.opponent_scores = np.array([self.opponent_model.get_predicted_utility(bid) for bid in self.bids])
+
+            # Get the indices of the bids we care about
+            # with those indices index into opponent_scores
+            # get the argmax, this argmax bids[bids_we_care_about[argmax_of_opponent_scores]]
+
             upper_thresh = 0.99 if self.last_proposed_bid is None else float(self.profile.getUtility(self.last_proposed_bid))
-            # og_bids = [all_bids.get(randint(0, all_bids.size() - 1)) for _ in range(1000)]
-            bids = [bid for bid in og_bids if upper_thresh+0.05 > self.profile.getUtility(bid) > upper_thresh-0.05 and self.profile.getUtility(bid) > reservation_value]
-            opponent_scores = [self.opponent_model.get_predicted_utility(bid) for bid in bids]
+            indices_we_care_about = np.where((upper_thresh+0.05 > self.scores) & (self.scores > upper_thresh-0.05))[0]
+            if len(indices_we_care_about) == 0:
+                # this is a failsafe on the off chance that upper_thresh is too high with no known last bid.
+                return self.bids[np.random.choice(self.arg_sort)]
+            possible_utilities_for_the_opponent = self.opponent_scores[indices_we_care_about]
+            return self.bids[indices_we_care_about[np.argmax(possible_utilities_for_the_opponent)]]
 
-            # no good bids on our side were drawn
-            if len(opponent_scores) == 0:
-                scores = [self.profile.getUtility(bid) for bid in og_bids]
-                return og_bids[np.argmax(scores)]
-
-            return bids[np.argmax(opponent_scores)]
-
-
-        # get all our scores, drop all scores below our last bid.
-        # return maximum opponent score.
-
-        # take 500 attempts to find a bid according to a heuristic score
-        # for _ in range(500):
-        #     bid = all_bids.get(randint(0, all_bids.size() - 1))
-        #     bid_score = self.score_bid(bid)
-        #     if bid_score > best_bid_score:
-        #         best_bid_score, best_bid = bid_score, bid
-        #
-        # return best_bid
-
-    def score_bid(self, bid: Bid, alpha: float = 0.95, eps: float = 0.1) -> float:
-        """Calculate heuristic score for a bid
-
-        Args:
-            bid (Bid): Bid to score
-            alpha (float, optional): Trade-off factor between self interested and
-                altruistic behaviour. Defaults to 0.95.
-            eps (float, optional): Time pressure factor, balances between conceding
-                and Boulware behaviour over time. Defaults to 0.1.
-
-        Returns:
-            float: score
-        """
-        progress = self.progress.get(time() * 1000)  # 0.9
-
-        our_utility = float(self.profile.getUtility(bid))  # 0.8
-
-        time_pressure = 1.0 - progress ** (1 / eps)  # = 0.65
-        score = alpha * time_pressure * our_utility
-
-        opponent_utility = 0
-        if self.opponent_model is not None:
-            opponent_utility = self.opponent_model.get_predicted_utility(bid)
-            opponent_score = (1.0 - alpha * time_pressure) * opponent_utility
-            score += opponent_score
-
-
-
-        return our_utility + opponent_utility

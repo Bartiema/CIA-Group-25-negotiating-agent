@@ -27,7 +27,7 @@ settings = {
         },
     ],
     "profiles": ["domains/domain00/profileA.json", "domains/domain00/profileB.json"],
-    "deadline_time_ms": 10000,
+    "deadline_time_ms": 1000,
 }
 
 # run a session and obtain results in dictionaries
