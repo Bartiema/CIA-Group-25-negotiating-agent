@@ -204,7 +204,6 @@ class NegotiatingAgent(DefaultParty):
 
         # check if the offer is valued above the max value between alpha and the reservation value
         alpha = 0.8
-        reservation = self.profile.getUtility(self.profile.getReservationBid()) if self.profile.getReservationBid() is not None else alpha
         if self.profile.getUtility(bid) >= min(self.lowest_bid + 0.05, alpha):
             ac_const = True
         else:
@@ -241,6 +240,9 @@ class NegotiatingAgent(DefaultParty):
         progress = self.progress.get(time() * 1000)  # 0.9
 
         if self.bids is None:
+            # attempt to draw 10_000 bids, discard the useless ones.
+            # then preconfigure it for later stages and calculate all the scores
+            # only retain the best set of bids in self.arg_sort to offer during the initial bidding stage
             generator = self.random_bid_generator(10000)
             bid_val = [(bid, float(self.profile.getUtility(bid))) for bid in generator if self.profile.getUtility(bid) > self.reservation_value]
             self.bids = np.array([x[0] for x in bid_val])
@@ -254,6 +256,7 @@ class NegotiatingAgent(DefaultParty):
             return self.bids[np.random.choice(self.arg_sort)]
         else:
             self.count += 1
+            # refresh scores every so often as opponent might also start conceding from here.
             if self.opponent_scores is None or self.count % 20 == 0:
                 self.opponent_scores = np.array([self.opponent_model.get_predicted_utility(bid) for bid in self.bids])
 
@@ -261,8 +264,9 @@ class NegotiatingAgent(DefaultParty):
             # with those indices index into opponent_scores
             # get the argmax, this argmax bids[bids_we_care_about[argmax_of_opponent_scores]]
 
+            # centre of the domain that we will pick from
             upper_thresh = 0.99 if self.last_proposed_bid is None else float(self.profile.getUtility(self.last_proposed_bid))
-            delta = 0.05
+            delta = 0.05  # concession delta
             indices_we_care_about = np.where((upper_thresh+delta > self.scores) & (self.scores > upper_thresh-delta))[0]
             if len(indices_we_care_about) == 0:
                 # this is a failsafe on the off chance that upper_thresh is too high with no known last bid.
