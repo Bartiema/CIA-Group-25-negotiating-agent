@@ -8,3 +8,8 @@ results
 
 *.sbatch
 *.log
+.idea/.gitignore
+.idea/CIA-Group-25-negotiating-agent.iml
+.idea/misc.xml
+.idea/vcs.xml
+.idea/inspectionProfiles/profiles_settings.xml

@@ -4,6 +4,9 @@ from itertools import permutations
 from math import factorial, prod
 from pathlib import Path
 from typing import Tuple
+import os
+import sys
+from contextlib import redirect_stdout
 
 import pandas as pd
 from geniusweb.profile.utilityspace.LinearAdditiveUtilitySpace import (
@@ -123,9 +126,14 @@ def run_tournament(tournament_settings: dict) -> Tuple[list, list]:
     tournament_results = []
     tournament_steps = []
     for profiles in profile_sets:
+        os.system('cls')
+        print(f'{len(tournament_steps)}/{num_sessions}')
         # quick an dirty check
         assert isinstance(profiles, list) and len(profiles) == 2
         for agent_duo in permutations(agents, 2):
+            os.system('cls')
+            print(f'{len(tournament_steps)}/{num_sessions}')
+
             # create session settings dict
             settings = {
                 "agents": list(agent_duo),
@@ -134,13 +142,14 @@ def run_tournament(tournament_settings: dict) -> Tuple[list, list]:
             }
 
             # run a single negotiation session
-            _, session_results_summary = run_session(settings)
+            with redirect_stdout(None):
+                _, session_results_summary = run_session(settings)
 
             # assemble results
             tournament_steps.append(settings)
             tournament_results.append(session_results_summary)
-
-    tournament_results_summary = process_tournament_results(tournament_results)
+    with redirect_stdout(None):
+        tournament_results_summary = process_tournament_results(tournament_results)
 
     return tournament_steps, tournament_results, tournament_results_summary
 

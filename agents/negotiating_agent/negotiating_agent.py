@@ -1,4 +1,6 @@
 import logging
+import numpy as np
+import numpy.ma as mask
 from random import randint
 from time import time
 from typing import cast
@@ -45,9 +47,18 @@ class NegotiatingAgent(DefaultParty):
         self.settings: Settings = None
         self.storage_dir: str = None
 
+        self.last_proposed_bid: Bid = None
         self.last_received_bid: Bid = None
         self.opponent_model: OpponentModel = None
         self.logger.log(logging.INFO, "party is initialized")
+
+        self.lowest_bid: float = 1.0
+        self.reservation_value: float = 0.6
+        self.bids = None
+        self.scores = None
+        self.opponent_scores = None
+        self.arg_sort = None
+        self.count = 0
 
     def notifyChange(self, data: Inform):
         """MUST BE IMPLEMENTED
@@ -159,16 +170,16 @@ class NegotiatingAgent(DefaultParty):
         """This method is called when it is our turn. It should decide upon an action
         to perform and send this action to the opponent.
         """
+        bid = self.find_bid()
         # check if the last received offer is good enough
-        if self.accept_condition(self.last_received_bid):
+        if self.accept_condition(self.last_received_bid, bid):
             # if so, accept the offer
             action = Accept(self.me, self.last_received_bid)
         else:
             # if not, find a bid to propose as counter offer
-            bid = self.find_bid()
             action = Offer(self.me, bid)
-
         # send the action
+        self.last_proposed_bid = bid
         self.send_action(action)
 
     def save_data(self):
@@ -184,61 +195,84 @@ class NegotiatingAgent(DefaultParty):
     ################################## Example methods below ##################################
     ###########################################################################################
 
-    def accept_condition(self, bid: Bid) -> bool:
+    def accept_condition(self, bid: Bid, next_bid: Bid) -> bool:
         if bid is None:
             return False
 
         # progress of the negotiation session between 0 and 1 (1 is deadline)
         progress = self.progress.get(time() * 1000)
 
-        # very basic approach that accepts if the offer is valued above 0.7 and
-        # 95% of the time towards the deadline has passed
-        conditions = [
-            self.profile.getUtility(bid) > 0.8,
-            progress > 0.95,
-        ]
-        return all(conditions)
+        # check if the offer is valued above the max value between alpha and the reservation value
+        alpha = 0.8
+        if self.profile.getUtility(bid) >= min(self.lowest_bid + 0.05, alpha):
+            ac_const = True
+        else:
+            ac_const = False
 
-    def find_bid(self) -> Bid:
-        # compose a list of all possible bids
+        # check if the bid is better than upcoming bid
+        if next_bid is not None:
+            ac_next = self.profile.getUtility(bid) >= self.profile.getUtility(next_bid)
+        else:
+            ac_next = False
+
+        # check if 98% of the time has passed
+        if progress > 0.98:
+            ac_time = True
+        else:
+            ac_time = False
+
+        # ac_combi = true if ac_next or ac_time are true and if ac_const is true
+        ac_combi = (ac_next or ac_time) and ac_const
+        return ac_combi
+
+    def random_bid_generator(self, n: int):
         domain = self.profile.getDomain()
         all_bids = AllBidsList(domain)
+        to_go = list(range(all_bids.size()))
+        for _ in range(n):
+            if len(to_go) == 0:
+                break
+            index = randint(0, len(to_go)-1)
+            yield all_bids.get(to_go.pop(index))
 
-        best_bid_score = 0.0
-        best_bid = None
+    def find_bid(self) -> Bid:
 
-        # take 500 attempts to find a bid according to a heuristic score
-        for _ in range(500):
-            bid = all_bids.get(randint(0, all_bids.size() - 1))
-            bid_score = self.score_bid(bid)
-            if bid_score > best_bid_score:
-                best_bid_score, best_bid = bid_score, bid
+        progress = self.progress.get(time() * 1000)  # 0.9
 
-        return best_bid
+        if self.bids is None:
+            # attempt to draw 10_000 bids, discard the useless ones.
+            # then preconfigure it for later stages and calculate all the scores
+            # only retain the best set of bids in self.arg_sort to offer during the initial bidding stage
+            generator = self.random_bid_generator(10000)
+            bid_val = [(bid, float(self.profile.getUtility(bid))) for bid in generator if self.profile.getUtility(bid) > self.reservation_value]
+            self.bids = np.array([x[0] for x in bid_val])
+            self.scores = np.array([x[1] for x in bid_val])
+            self.arg_sort = np.where(self.scores > 0.9)
+            if len(self.arg_sort) < 10:
+                self.arg_sort = np.flip(np.argsort(self.scores))[:50]
 
-    def score_bid(self, bid: Bid, alpha: float = 0.95, eps: float = 0.1) -> float:
-        """Calculate heuristic score for a bid
+        # first halve we just model the opponent, so we only propose valid bids for us
+        if progress < 0.85:
+            return self.bids[np.random.choice(self.arg_sort)]
+        else:
+            self.count += 1
+            # refresh scores every so often as opponent might also start conceding from here.
+            if self.opponent_scores is None or self.count % 20 == 0:
+                self.opponent_scores = np.array([self.opponent_model.get_predicted_utility(bid) for bid in self.bids])
 
-        Args:
-            bid (Bid): Bid to score
-            alpha (float, optional): Trade-off factor between self interested and
-                altruistic behaviour. Defaults to 0.95.
-            eps (float, optional): Time pressure factor, balances between conceding
-                and Boulware behaviour over time. Defaults to 0.1.
+            # Get the indices of the bids we care about
+            # with those indices index into opponent_scores
+            # get the argmax, this argmax bids[bids_we_care_about[argmax_of_opponent_scores]]
 
-        Returns:
-            float: score
-        """
-        progress = self.progress.get(time() * 1000)
+            # centre of the domain that we will pick from
+            upper_thresh = 0.99 if self.last_proposed_bid is None else float(self.profile.getUtility(self.last_proposed_bid))
+            delta = 0.05  # concession delta
+            indices_we_care_about = np.where((upper_thresh+delta > self.scores) & (self.scores > upper_thresh-delta))[0]
+            if len(indices_we_care_about) == 0:
+                # this is a failsafe on the off chance that upper_thresh is too high with no known last bid.
+                return self.bids[np.random.choice(self.arg_sort)]
+            possible_utilities_for_the_opponent = self.opponent_scores[indices_we_care_about]
+            final_index = indices_we_care_about[np.random.choice(np.flip(np.argsort(possible_utilities_for_the_opponent))[:5])]
+            self.lowest_bid = min(self.lowest_bid, self.scores[final_index])
+            return self.bids[final_index]
 
-        our_utility = float(self.profile.getUtility(bid))
-
-        time_pressure = 1.0 - progress ** (1 / eps)
-        score = alpha * time_pressure * our_utility
-
-        if self.opponent_model is not None:
-            opponent_utility = self.opponent_model.get_predicted_utility(bid)
-            opponent_score = (1.0 - alpha * time_pressure) * opponent_utility
-            score += opponent_score
-
-        return score
