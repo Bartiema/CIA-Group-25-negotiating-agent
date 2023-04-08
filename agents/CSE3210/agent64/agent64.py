@@ -133,14 +133,14 @@ class Agent64(DefaultParty):
         if self._last_received_bid is not None:
             # Store past 20 recieved bid utilities
             if (len(self._past_20_offers) < 20):
-                self._past_20_offers.append(self._profile.getProfile().getUtility(self._last_received_bid))
+                self._past_20_offers.append(self.profile.getUtility(self._last_received_bid))
             else:
                 self._past_20_offers = self._past_20_offers[1:]
 
-            if (self._profile.getProfile().getUtility(self._last_received_bid) / np.mean(
+            if (self.profile.getUtility(self._last_received_bid) / np.mean(
                     self._past_20_offers) > self._concesssion_treshold):
                 self._opponent_concedes = True
-            if (self._profile.getProfile().getUtility(self._last_received_bid) / np.mean(
+            if (self.profile.getUtility(self._last_received_bid) / np.mean(
                     self._past_20_offers) < self._concesssion_treshold):
                 self._opponent_concedes = False
                 self._can_modify = True

@@ -124,7 +124,7 @@ class Agent55(DefaultParty):
             profile_connection.close()
 
             # create and initialize opponent-model
-            profile = self._profile.getProfile()
+            profile = self.profile
             self.opponentModel = self.opponentModel.With(
                 self.domain, profile.getReservationBid())
 

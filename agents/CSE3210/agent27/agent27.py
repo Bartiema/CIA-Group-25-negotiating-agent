@@ -28,6 +28,7 @@ class Agent27(DefaultParty):
 
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
+        self._profile = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self.profile = None
         self.domain = None

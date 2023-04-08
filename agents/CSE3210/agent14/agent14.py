@@ -28,6 +28,7 @@ class Agent14(DefaultParty):
 
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
+        self._profile = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._last_received_bid = None
         self.last_my_utility = 1
