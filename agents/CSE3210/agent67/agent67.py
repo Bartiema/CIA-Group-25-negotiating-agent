@@ -365,9 +365,9 @@ class Agent67(DefaultParty):
         Returns the best bid
         """
         if(not self.calculated_bid):
-            domain = self._profile.getProfile().getDomain()
+            domain = self.domain
             all_bids = AllBidsList(domain)
-            profile = self._profile.getProfile()
+            profile = self.profile
 
             best_utility = 0.0
 
@@ -390,9 +390,9 @@ class Agent67(DefaultParty):
         """
         temp_tuple_bid = []
         if(not self.calculated_bid):
-            domain = self._profile.getProfile().getDomain()
+            domain = self.domain
             all_bids = AllBidsList(domain)
-            profile = self._profile.getProfile()
+            profile = self.profile
 
             for x in all_bids:
                 temp_tuple_bid.append((profile.getUtility(x), x))
@@ -420,7 +420,7 @@ class Agent67(DefaultParty):
         self.idx_value = self.idx_value + 1
 
     def calculate_avg_util(self):
-        profile = self._profile.getProfile()
+        profile = self.profile
         util_avg = 0
 
         for bid in self.sorted_bid:
