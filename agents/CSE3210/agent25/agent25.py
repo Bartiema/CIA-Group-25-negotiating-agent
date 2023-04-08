@@ -90,7 +90,7 @@ class Agent25(DefaultParty):
             else:
                 # the profile contains the preferences of the agent over the domain
                 profile_connection = ProfileConnectionFactory.create(
-                    data.getProfile().getURI(), self.getReporter()
+                    info.getProfile().getURI(), self.getReporter()
                 )
                 self.profile = profile_connection.getProfile()
                 self.domain = self.profile.getDomain()

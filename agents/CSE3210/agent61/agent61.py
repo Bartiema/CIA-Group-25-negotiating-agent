@@ -60,9 +60,12 @@ class Agent61(DefaultParty):
             self._progress: ProgressRounds = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
+            profile_connection = ProfileConnectionFactory.create(
                 info.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
             action: Action = cast(ActionDone, info).getAction()
@@ -75,7 +78,7 @@ class Agent61(DefaultParty):
                 if self._opponent_model is None:
                     self._opponent_model = FrequencyOpponentModel.create()
                     self._opponent_model = self._opponent_model \
-                        .With(newDomain=(self._profile.getProfile()).getDomain(), newResBid=None)
+                        .With(newDomain=self.domain, newResBid=None)
                     self._opponent_model = FrequencyOpponentModel.WithAction(self._opponent_model, action,
                                                                              self._progress)
                 else:
@@ -123,7 +126,7 @@ class Agent61(DefaultParty):
     
     # Creates the ideal bid for the agent
     def _createBestBid(self):
-        own_prof = self._profile.getProfile()
+        own_prof = self.profile
 
         bidVals: dict[str, Value] = dict()
         prof_vals = own_prof.getDomain().getIssuesValues()
@@ -142,10 +145,10 @@ class Agent61(DefaultParty):
         
         # If a reservation bid exists, its utility is the lower bound for accepting / sending offers
         if self._reservation_value is None:
-            if self._profile.getProfile().getReservationBid() is None:
+            if self.profile.getReservationBid() is None:
                 self._reservation_value = 0
             else:
-                self._reservation_value = self._profile.getProfile().getUtility(self._profile.getProfile().getReservationBid())
+                self._reservation_value = self.profile.getUtility(self.profile.getReservationBid())
 
         # check if the last received offer if the opponent is good enough
         if self._isGood(self._last_received_bid):
@@ -164,7 +167,7 @@ class Agent61(DefaultParty):
     def _isGood(self, bid: Bid) -> bool:
         if bid is None:
             return False
-        profile = self._profile.getProfile()
+        profile = self.profile
         progress = self._progress.get(time.time() * 1000)
 
         diff = (self._opponent_model.getUtility(bid) - profile.getUtility(bid))
@@ -195,7 +198,7 @@ class Agent61(DefaultParty):
     # party. The more time has passed, the more the ideal bid is mutated
     def _mutateBid(self, bid: Bid) -> Bid:
 
-        own_prof = self._profile.getProfile()
+        own_prof = self.profile
         bw = own_prof.getWeights()
 
         sorted_weights = sorted(bw, key=bw.get)
@@ -214,7 +217,7 @@ class Agent61(DefaultParty):
     # to equalize both parties' utility value and that is above reservation
     def _findCounterBidMutate(self) -> Bid:
 
-        own_prof = self._profile.getProfile()
+        own_prof = self.profile
 
         selected_bid = copy.deepcopy(self._last_sent_bid)
         max_nash_prod = (own_prof.getUtility(selected_bid) * self._opponent_model.getUtility(selected_bid))
