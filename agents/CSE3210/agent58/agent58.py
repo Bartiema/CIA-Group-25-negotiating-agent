@@ -33,6 +33,8 @@ class Agent58(DefaultParty):
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
 
+        self.domain = None
+        self.profile = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
         self._last_received_bid = None
@@ -62,17 +64,20 @@ class Agent58(DefaultParty):
             self._progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
             # BOA initializing
-            self.opponent_model = OpponentModel(self._profile.getProfile().getDomain())
+            self.opponent_model = OpponentModel(self.domain)
             # open('OpponentModel.log', 'w').close()
-            self.bidding_strat = TradeOff(self._profile.getProfile(), self.opponent_model, self.offer,
-                                          self._profile.getProfile().getDomain())
-            self.acceptance_strat = AcceptanceStrategy(self._profile.getProfile(), self.floor,
-                                                       self._profile.getProfile().getDomain())
+            self.bidding_strat = TradeOff(self.profile, self.opponent_model, self.offer,
+                                          self.domain)
+            self.acceptance_strat = AcceptanceStrategy(self.profile, self.floor,
+                                                       self.domain)
 
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):

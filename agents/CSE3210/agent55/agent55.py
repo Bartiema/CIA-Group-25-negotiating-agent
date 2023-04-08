@@ -33,6 +33,8 @@ class Agent55(DefaultParty):
 
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
+        self.domain = None
+        self.profile = None
         self._utilspace: LinearAdditive = None
         self._bidutils = None
         self.getReporter().log(logging.INFO, "party is initialized")
@@ -114,14 +116,17 @@ class Agent55(DefaultParty):
             self._progress: ProgressRounds = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
             # create and initialize opponent-model
             profile = self._profile.getProfile()
             self.opponentModel = self.opponentModel.With(
-                profile.getDomain(), profile.getReservationBid())
+                self.domain, profile.getReservationBid())
 
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
@@ -212,7 +217,7 @@ class Agent55(DefaultParty):
         # Pick which best bid we are using as base. Slight random bias towards our best bid. Also the opponent best bid must be more favorable to us.
         if currentBestOurBidNashProduct < currentBestTheirBidNashProduct \
                 and self.percentOfTimeWeUseOpponentsBestBidIfItIsBetter > uniform(0, 1) \
-                and self._profile.getProfile().getUtility(currentBestTheirBid) > self.opponentModel.getUtility(currentBestTheirBid):
+                and self.profile.getUtility(currentBestTheirBid) > self.opponentModel.getUtility(currentBestTheirBid):
 
             currentBestBid = currentBestTheirBid
             currentBestBidNashProduct = currentBestTheirBidNashProduct
@@ -266,9 +271,7 @@ class Agent55(DefaultParty):
         if lastReceivedBid is None or proposedBid is None:
             return False
 
-        profile = self._profile.getProfile()
-
-        if profile.getUtility(lastReceivedBid) >= profile.getUtility(proposedBid):
+        if self.profile.getUtility(lastReceivedBid) >= self.profile.getUtility(proposedBid):
             return True
 
         return self._isGood(lastReceivedBid)
@@ -283,8 +286,7 @@ class Agent55(DefaultParty):
         if progress >= self.timePassedAccept:
             return True
 
-        profile = self._profile.getProfile()
-        utility = profile.getUtility(lastReceivedBid)
+        utility = self.profile.getUtility(lastReceivedBid)
 
         if utility >= self.baselineAcceptableUtility:
             return True
@@ -377,7 +379,7 @@ class Agent55(DefaultParty):
         return currentBestBid.val, 1 - currentBestInvertedNashProduct
 
     def _getNashProduct(self, bid) -> Decimal:
-        utility = self._profile.getProfile().getUtility(bid)
+        utility = self.profile.getUtility(bid)
         opponentUtility = self.opponentModel.getUtility(bid)
         return utility * opponentUtility
 
@@ -386,14 +388,14 @@ class Agent55(DefaultParty):
         return (self._getNashProduct(x[1].val), x[1])
 
     def _updateUtilSpace(self) -> LinearAdditive:
-        newutilspace = self._profile.getProfile()
+        newutilspace = self.profile
         if not newutilspace == self._utilspace:
             self._utilspace = newutilspace
             self._bidutils = BidsWithUtility.create(self._utilspace)
         return self._utilspace
 
     def _generateRandomBid(self) -> tuple[Bid, Decimal]:
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         all_bids = AllBidsList(domain)
         bid = None
 
@@ -423,7 +425,7 @@ class Agent55(DefaultParty):
 
         ###This block calculates: ourAverageUtilityChangeByTheirBids and TheirAverageUtilityChangeByTheirBids ########
 
-        ourUtilityThisBid = self._profile.getProfile().getUtility(self._lastReceivedBid)
+        ourUtilityThisBid = self.profile.getUtility(self._lastReceivedBid)
         theirUtilityThisBid = self.opponentModel.getUtility(
             self._lastReceivedBid)
         bidCount = self.opponentModel._totalBids

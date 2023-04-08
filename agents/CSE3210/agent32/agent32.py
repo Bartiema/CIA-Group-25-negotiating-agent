@@ -35,7 +35,8 @@ class Agent32(DefaultParty):
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
-        self._profile = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid: Bid = None
         self.previousReceivedBids = []
         self.previousReceivedUtils = []
@@ -59,9 +60,12 @@ class Agent32(DefaultParty):
             self._progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
             action: Action = cast(ActionDone, info).getAction()
@@ -124,7 +128,7 @@ class Agent32(DefaultParty):
 
     # execute a turn 
     def _myTurn(self):
-        profile = self._profile.getProfile()
+        profile = self.profile
         # check if the last received offer if the opponent is good enough
         if self._isGood(self._last_received_bid):
             # if so, accept the offer
@@ -143,7 +147,7 @@ class Agent32(DefaultParty):
     def _isGood(self, bid: Bid) -> bool:
         if bid is None:
             return False
-        profile = self._profile.getProfile()
+        profile = self.profile
         progress = self._progress.get(time.time() * 1000)
         
         #To still get some points from a hardlining enemy accept their last bid (since there is no gurantee they will accept our last bid)
@@ -161,9 +165,9 @@ class Agent32(DefaultParty):
     
     def _findBid(self) -> Bid:
         # compose a list of all possible bids
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         all_bids = AllBidsList(domain)
-        profile = self._profile.getProfile()
+        profile = self.profile
         progress = self._progress.get(time.time() * 1000)
         self.validBidOptions = []
         self.allBidOptions = []

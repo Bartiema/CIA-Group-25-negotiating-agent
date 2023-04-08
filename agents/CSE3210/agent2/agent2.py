@@ -45,6 +45,8 @@ class Agent2(DefaultParty):
         self._last_received_bid: Bid = None # type:ignore
         self._utilspace: UtilitySpace = None # type:ignore
         self._extendedspace: ExtendedUtilSpace = None # type:ignore
+        self.profile = None
+        self.domain = None
 
         self.highest_social_welfare_bid: list[Bid] = []
 
@@ -81,12 +83,15 @@ class Agent2(DefaultParty):
             self._progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profileint = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
-            self.opponent_model.set_domain(self._profileint.getProfile().getDomain())
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
+            self.opponent_model.set_domain(self.domain)
 
-            reservation_bid = self._profileint.getProfile().getReservationBid()
+            reservation_bid = self.profile.getReservationBid()
 
             if reservation_bid is not None:
                 profile, _ = self._get_profile_and_progress()
@@ -228,7 +233,7 @@ class Agent2(DefaultParty):
         # compose a list of all possible bids
         # TODO Make the selection more constrained, the frequency analyzer performs relatively well
         #      but the amount of time it takes to find a good/nice bid can be reduced significantly
-        all_bids = AllBidsList(self._profileint.getProfile().getDomain())
+        all_bids = AllBidsList(self.domain)
 
         # TODO Also consider doing this differently
         maxBid = self._find_lower_bid()
@@ -299,13 +304,13 @@ class Agent2(DefaultParty):
     # ==============
 
     def _get_profile_and_progress(self) -> tuple[LinearAdditive, float]:
-        profile: Profile = self._profileint.getProfile()
+        profile: Profile = self.profile
         progress: float = self._progress.get(time.time() * 1000)
 
         return cast(LinearAdditive, profile), progress
 
     def _update_utilspace(self) -> None:  # throws IOException
-        newutilspace = self._profileint.getProfile()
+        newutilspace = self.profile
         if not newutilspace == self._utilspace:
             self._utilspace = cast(LinearAdditive, newutilspace)
             self._extendedspace = ExtendedUtilSpace(self._utilspace)

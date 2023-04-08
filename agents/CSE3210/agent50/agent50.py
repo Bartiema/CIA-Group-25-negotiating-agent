@@ -38,6 +38,8 @@ class Agent50(DefaultParty):
 
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
+        self.domain = None
+        self.profile = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
         self._last_received_bid: Bid = None
@@ -65,9 +67,12 @@ class Agent50(DefaultParty):
             self._progress: ProgressRounds = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
             action: Action = cast(ActionDone, info).getAction()
@@ -167,7 +172,7 @@ class Agent50(DefaultParty):
     def _calculateUtilityValue(self, bid: Bid) -> Decimal:
         if not bid:
             return 0
-        return self._profile.getProfile().getUtility(bid)
+        return self.profile.getUtility(bid)
 
     # Returns true iff the given bid is better than the last proposed bid and the reservation value (ACnext)
     def _isAcceptable(self, bid: Bid) -> bool:
@@ -178,7 +183,7 @@ class Agent50(DefaultParty):
         # Calculate utility value of the bid
         uv = self._calculateUtilityValue(bid)
 
-        reservation_bid = self._profile.getProfile().getReservationBid()
+        reservation_bid = self.profile.getReservationBid()
         # Check if utility value of bid is higher than last proposed bid and the reservation bid
         if not reservation_bid:
             return uv >= self._calculateUtilityValue(self._last_send_bid)
@@ -216,7 +221,7 @@ class Agent50(DefaultParty):
     def _generateBid(self) -> Bid:
         # Calculate the variance of each issue in the bids of the opposing party
         variabilities = []
-        for issue in self._profile.getProfile().getDomain().getIssues():
+        for issue in self.domain.getIssues():
             variabilities.append((issue, self._computeVariability(issue)))
 
         # Order issues in the most recent incoming bid by variance, descending
@@ -258,7 +263,7 @@ class Agent50(DefaultParty):
 
     # Initializes the data structure storing the issue values ordered by utility value (ascending)
     def initializeIssueValues(self):
-        profile = self._profile.getProfile()
+        profile = self.profile
 
         utilities_per_value_per_issue: dict[
             str, ValueSetUtilities

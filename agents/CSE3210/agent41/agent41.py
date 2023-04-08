@@ -35,6 +35,8 @@ class Agent41(DefaultParty):
         super().__init__(reporter)
         # self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid: Bid = None
         self._best_past_bid: Bid = None
         self.opponentModel = FrequencyOpponentModel.create()
@@ -79,11 +81,14 @@ class Agent41(DefaultParty):
             self._progress: ProgressRounds = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
-            domain = self._profile.getProfile().getDomain()
+            domain = self.domain
             self.opponentModel = self.opponentModel.With(newDomain=domain, newResBid=0)
 
         # ActionDone is an action send by an opponent (an offer or an accept)
@@ -164,7 +169,7 @@ class Agent41(DefaultParty):
         if bid is None:
             return False
 
-        profile = self._profile.getProfile()
+        profile = self.profile
 
         # Update the best past bid effectively making it a reservation bid
         if self._best_past_bid is None:
@@ -192,8 +197,8 @@ class Agent41(DefaultParty):
         """
         Find the most suitable bid to offer given the current state of negotiations.
         """
-        domain = self._profile.getProfile().getDomain()
-        profile = self._profile.getProfile()
+        domain = self.domain
+        profile = self.profile
 
         # verify if the reservation bid should be used
         if self._verify_reservation_val():
@@ -247,12 +252,12 @@ class Agent41(DefaultParty):
         or if the utility of the reservation bid exceeds our upper utility threshold.
         """
         if self._best_past_bid is not None:
-            reservation_val = self._profile.getProfile().getUtility(
+            reservation_val = self.profile.getUtility(
                 self._best_past_bid)
             if self._progress.get(
                     0) >= reservation_progress and reservation_val >= self.minimal_reservation_val:
                 return True
-            if self._profile.getProfile().getUtility(self._best_past_bid) >= self.utility_range[1]:
+            if self.profile.getUtility(self._best_past_bid) >= self.utility_range[1]:
                 return True
         return False
 
@@ -261,7 +266,7 @@ class Agent41(DefaultParty):
         Verifies if the bid that our agent came up with is good enough to be offered to another agent.
         """
         progress = self._progress.get(time.time() * 1000)
-        profile = self._profile.getProfile()
+        profile = self.profile
         our_util = profile.getUtility(bid)
 
         # do not consider the bid if it is worse than our reservation bid

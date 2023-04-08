@@ -12,12 +12,12 @@ from .utility import AgentUtility
 class AbstractBiddingStrategy:
 
     def __init__(self, profile: ProfileInterface = None, utility: AgentUtility = None):
-        self._profile: ProfileInterface = profile
+        self.profile: ProfileInterface = profile
         self._utility: AgentUtility = utility
 
     def set_profile(self, profile: ProfileInterface):
         """Setter for profile interface"""
-        self._profile: ProfileInterface = profile
+        self.profile: ProfileInterface = profile
 
     def set_utility(self, utility: AgentUtility):
         """Setter for utility interface"""
@@ -82,11 +82,11 @@ class BiddingStrategyDeterministic(AbstractBiddingStrategy):
         """
         method for generating the most to least profitable bids in order
         """
-        domain = self._profile.getProfile().getDomain()
+        domain = self.profile.getDomain()
         all_bids = AllBidsList(domain)
         bids_values = []
         for bid in all_bids:
-            bids_values.append((bid, self._profile.getProfile().getUtility(bid)))
+            bids_values.append((bid, self.profile.getUtility(bid)))
         bids_values.sort(reverse=False, key=lambda x: x[1])
         return bids_values
 
@@ -94,7 +94,7 @@ class BiddingStrategyDeterministic(AbstractBiddingStrategy):
         utility_values = []
         for iv in issue_values:
             bid = Bid({issue: iv})
-            utility_values.append(self._profile.getProfile().getUtility(bid))
+            utility_values.append(self.profile.getUtility(bid))
         return utility_values
 
 
@@ -132,10 +132,10 @@ class AgressiveBiddingStrategy(AbstractBiddingStrategy):
         return bid[0]
 
     def get_all_bids_higher_than(self, value: float) -> list:
-        domain = self._profile.getProfile().getDomain()
+        domain = self.profile.getDomain()
         all_bids = AllBidsList(domain)
         bids_values = []
         for bid in all_bids:
-            bids_values.append((bid, self._profile.getProfile().getUtility(bid)))
+            bids_values.append((bid, self.profile.getUtility(bid)))
         bids_values.sort(reverse=False, key=lambda x: x[1])
         return list(filter(lambda bid: bid[1] > value, bids_values))

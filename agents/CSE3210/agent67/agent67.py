@@ -35,6 +35,8 @@ class Agent67(DefaultParty):
 
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
+        self.domain = None
+        self.profile = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
         self._last_received_bid: Bid = None
@@ -79,9 +81,12 @@ class Agent67(DefaultParty):
             self._progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
             action: Action = cast(ActionDone, info).getAction()
@@ -168,19 +173,18 @@ class Agent67(DefaultParty):
         """
         if bid is None:
             return False
-        profile = self._profile.getProfile()
         progress = self._progress.get(time.time() * 1000)
 
         # If 90% of the rounds towards the deadline have passed
         # and no progress made. Then switching to the
         # concession strategy
-        if progress > 0.90 and profile.getUtility(bid) > 0.4:
+        if progress > 0.90 and self.profile.getUtility(bid) > 0.4:
             return True
 
         # 75% of the rounds towards the deadline have passed
         # Using acceptance strategy here called : AC_NEXT
         return progress > 0.75 \
-            and profile.getUtility(bid) > profile.getUtility(self._findBid()) \
+            and self.profile.getUtility(bid) > self.profile.getUtility(self._findBid()) \
             and self.batna(bid)
 
     #####################################################################################
@@ -192,13 +196,12 @@ class Agent67(DefaultParty):
         Finds the best offer for us and the opponent to 
         reach desirable agreeement and results.
         """
-        profile = self._profile.getProfile()
 
         # Walk-down strategy, stop until offered utility value
         # is below lambda parameter
         if(self.whether_walk_down):
             walk_down_bid = self.walk_down_strategy()
-            util_bid = profile.getUtility(walk_down_bid)
+            util_bid = self.profile.getUtility(walk_down_bid)
 
             lambda_value = 0.80
             if util_bid > lambda_value:
@@ -225,13 +228,12 @@ class Agent67(DefaultParty):
         Checking whether the bid's utility is 
         bove batna utility value.
         """
-        profile = self._profile.getProfile()
         reservation_bid = profile.getReservationBid()
 
         if reservation_bid is None:
             return True
         else:
-            return profile.getUtility(bid) > profile.getUtility(reservation_bid)
+            return self.profile.getUtility(bid) > self.profile.getUtility(reservation_bid)
 
     def find_best_offer(self) -> Bid:
         """

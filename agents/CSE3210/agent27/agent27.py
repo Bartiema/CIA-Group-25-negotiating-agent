@@ -29,7 +29,8 @@ class Agent27(DefaultParty):
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
-        self._profile = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid: Bid = None
         self.latest_bid: Bid = None
         self.all_bids = []
@@ -58,9 +59,12 @@ class Agent27(DefaultParty):
             self._progress: ProgressRounds = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
             action: Action = cast(ActionDone, info).getAction()
@@ -109,7 +113,7 @@ class Agent27(DefaultParty):
 
     # Initial setup
     def init(self):
-        profile = self._profile.getProfile()
+        profile = self.profile
         """ Determine which the not important issues are and save them """
         self.get_not_important_issues()
 
@@ -117,7 +121,7 @@ class Agent27(DefaultParty):
             Initialize dictionary where we store the count of each value for each issue in opponent's bids
             Used for opponent modelling
         """
-        issues = profile.getDomain().getIssues()
+        issues = self.domain.getIssues()
         for issue in issues:
             self.opponent_value_count[issue] = {}
             for value in profile.getDomain().getValues(issue):
@@ -137,7 +141,7 @@ class Agent27(DefaultParty):
 
     # execute a turn
     def _myTurn(self):
-        profile = self._profile.getProfile()
+        profile = self.profile
 
         # Initial setup
         if not self.opponent_value_count:
@@ -174,7 +178,7 @@ class Agent27(DefaultParty):
             return False
 
         progress = self._progress.get(time.time() * 1000)
-        profile = self._profile.getProfile()
+        profile = self.profile
 
         if progress < 0.85:
             if float(profile.getUtility(bid)) > 1 - progress / 4.5:
@@ -244,13 +248,13 @@ class Agent27(DefaultParty):
         Sorts all available bids on utility.
     """
     def order_bids(self):
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         all_bids = AllBidsList(domain)
 
         bids_with_utility = []
 
         for bid in all_bids:
-            bids_with_utility.append((bid, self._profile.getProfile().getUtility(bid)))
+            bids_with_utility.append((bid, self.profile.getUtility(bid)))
 
         bids_with_utility = sorted(bids_with_utility, key=lambda item: -item[1])
         self.all_available_bids_sorted = bids_with_utility
@@ -259,13 +263,13 @@ class Agent27(DefaultParty):
         Sorts all bids and selects the one with highest utility.
     """
     def get_highest_bid(self):
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         all_bids = AllBidsList(domain)
 
         bids_with_utility = []
 
         for bid in all_bids:
-            bids_with_utility.append((bid, self._profile.getProfile().getUtility(bid)))
+            bids_with_utility.append((bid, self.profile.getUtility(bid)))
 
         bids_with_utility = sorted(bids_with_utility, key=lambda item: -item[1])
         return bids_with_utility[0][0]
@@ -279,7 +283,7 @@ class Agent27(DefaultParty):
         if len(self.all_bids) < 2:
             return None
 
-        issues = self._profile.getProfile().getDomain().getIssues()
+        issues = self.domain.getIssues()
 
         opponent_counts = self.opponent_value_count
         demanded_best_offer = {}
@@ -299,7 +303,7 @@ class Agent27(DefaultParty):
     """
 
     def get_not_important_issues(self):
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         issues = domain.getIssues()
         weights = []
         not_important_issues = []
@@ -307,10 +311,10 @@ class Agent27(DefaultParty):
 
         for issue in issues:
             """ Weight by issue """
-            weights.append(self._profile.getProfile().getWeight(issue))
+            weights.append(self.profile.getWeight(issue))
 
         for issue in issues:
-            w = self._profile.getProfile().getWeight(issue)
+            w = self.profile.getWeight(issue)
             if w < 0.15 * float(max(weights)):
                 not_important_issues.append(issue)
             elif w < 0.5 * float(max(weights)):

@@ -33,7 +33,7 @@ class AgentUtility:
         Initializes the _opponent_weight_heuristic with values that are equally divided over the issues
         If there are 2 issues then the initial weight heuristic becomes {(issue1 : 0.5), (issue2: 0.5)} 
         """""
-        weightDict = self._profile.getProfile().getWeights()
+        weightDict = self._profile.getWeights()
         weightList = []
         for key, value in weightDict.items():
             weightList.append((key, value))
@@ -51,7 +51,7 @@ class AgentUtility:
         """""
         Initializes an empty _issue_count_dict
         """""
-        domain: Domain = self._profile.getProfile().getDomain()
+        domain: Domain = self._profile.getDomain()
         issues: Set[str] = domain.getIssues()
 
         self._issue_count_dict: Dict[str, Dict[Value, int]] = {}
@@ -136,7 +136,7 @@ class AgentUtility:
         """""
         Adds a bid to the bid history
         """""
-        self._self_bid_history.append((bid, self._profile.getProfile().getUtility(bid), own_bid))
+        self._self_bid_history.append((bid, self._profile.getUtility(bid), own_bid))
 
     def get_last_own_bid_utility(self):
         """""

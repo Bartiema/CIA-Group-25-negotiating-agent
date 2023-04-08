@@ -49,18 +49,21 @@ class Agent14(DefaultParty):
             # progress towards the deadline has to be tracked manually through the use of the Progress object
             self._progress = self._settings.getProgress()
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
             # initialize FrequencyOpponentModel
             self._opponent_model = FrequencyOpponentModel.create().With(
-                newDomain=self._profile.getProfile().getDomain(),
-                newResBid=self._profile.getProfile().getReservationBid())
+                newDomain=self.domain,
+                newResBid=self.profile.getReservationBid())
 
             # sort all issues by relevance
-            profile = self._profile.getProfile()
+            profile = self.profile
             issue_infos = BidsWithUtility._getInfo(profile, 6)
-            weights = self._profile.getProfile().getWeights()
+            weights = self.profile.getWeights()
             issue_infos.sort(key=lambda x: weights[x.getName()])
             issue_infos.reverse()
 
@@ -135,7 +138,7 @@ class Agent14(DefaultParty):
     def _isGood(self, bid: Bid) -> bool:
         if bid is None:
             return False
-        return self._profile.getProfile().getUtility(bid) >= self.last_my_utility
+        return self.profile.getUtility(bid) >= self.last_my_utility
 
     # This calculates utility of the next bid agent should make
     # e in range [1, inf] - exponential coefficient

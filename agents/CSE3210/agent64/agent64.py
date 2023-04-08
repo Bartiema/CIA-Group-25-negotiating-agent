@@ -32,6 +32,8 @@ class Agent64(DefaultParty):
 
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
+        self.domain = None
+        self.profile = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
         self._last_received_bid: Bid = None
@@ -68,9 +70,12 @@ class Agent64(DefaultParty):
             self.accept_offer_now_time = self._progress.getTerminationTime() - timedelta(seconds=2)
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
             action: Action = cast(ActionDone, info).getAction()
@@ -140,10 +145,10 @@ class Agent64(DefaultParty):
                 self._opponent_concedes = False
                 self._can_modify = True
 
-        profile = self._profile.getProfile()
-        if self._best_bid is None or profile.getUtility(self._last_received_bid) > profile.getUtility(self._best_bid):
+
+        if self._best_bid is None or self.profile.getUtility(self._last_received_bid) > self.profile.getUtility(self._best_bid):
             self._best_bid = self._last_received_bid
-        if self._lowest_bid is None or profile.getUtility(self._last_received_bid) < profile.getUtility(
+        if self._lowest_bid is None or self.profile.getUtility(self._last_received_bid) < self.profile.getUtility(
                 self._lowest_bid):
             self._lowest_bid = self._last_received_bid
 
@@ -167,9 +172,8 @@ class Agent64(DefaultParty):
             return False
 
         current_round = self._progress.get(time.time() * 1000)
-        profile = self._profile.getProfile()
-        current_offer = profile.getUtility(self._last_received_bid)
-        own_bid_util = profile.getUtility(bid)
+        current_offer = self.profile.getUtility(self._last_received_bid)
+        own_bid_util = self.profile.getUtility(bid)
 
         # if near deadline
         if current_round >= 0.98: # or datetime.now() >= self.accept_offer_now_time:
@@ -177,7 +181,7 @@ class Agent64(DefaultParty):
             bids = []
             for offer in self._all_received_offers[-window:]:
                 if offer:
-                    bids.append(profile.getUtility(offer) * self._opponent_model.getUtility(offer))
+                    bids.append(self.profile.getUtility(offer) * self._opponent_model.getUtility(offer))
 
             # (This max method checks if the current offer is better than the all the offers in the window)
             if current_offer >= np.max(bids):
@@ -215,27 +219,27 @@ class Agent64(DefaultParty):
         return bid
 
     def get_random_bid(self):
-        available_bids = AllBidsList(self._profile.getProfile().getDomain())
+        available_bids = AllBidsList(self.domain)
         random_better_bids = [bid for bid in available_bids if
-                              self.cmin <= self._profile.getProfile().getUtility(bid) <= self.cmax]
+                              self.cmin <= self.profile.getUtility(bid) <= self.cmax]
         if len(random_better_bids) == 0:
             random_better_bids = [
-                max(map(lambda bid: (bid, self._profile.getProfile().getUtility(bid)), available_bids),
+                max(map(lambda bid: (bid, self.profile.getUtility(bid)), available_bids),
                     key=lambda tup: tup[1])[0]]
             return random_better_bids[0]
         best_bid_for_opponent = [
             max(map(
-                lambda bid: (bid, self._opponent_model.getUtility(bid) * self._profile.getProfile().getUtility(bid)),
+                lambda bid: (bid, self._opponent_model.getUtility(bid) * self.profile.getUtility(bid)),
                 random_better_bids),
                 key=lambda tup: tup[1])[0]]
         return best_bid_for_opponent[0]
 
     def get_true_random_bid(self):
-        available_bids = AllBidsList(self._profile.getProfile().getDomain())
-        random_better_bids = [bid for bid in available_bids if self._profile.getProfile().getUtility(bid) >= self.cmin]
+        available_bids = AllBidsList(self.domain)
+        random_better_bids = [bid for bid in available_bids if self.profile.getUtility(bid) >= self.cmin]
         if len(random_better_bids) == 0:
             random_better_bids = [
-                max(map(lambda bid: (bid, self._profile.getProfile().getUtility(bid)), available_bids),
+                max(map(lambda bid: (bid, self.profile.getUtility(bid)), available_bids),
                     key=lambda tup: tup[1])[0]]
         return np.random.choice(random_better_bids)
 
@@ -245,5 +249,4 @@ class Agent64(DefaultParty):
         self._opponent_model = self._opponent_model.WithAction(self._last_received_action, self._progress)
 
     def _createFrequencyOpponentModelling(self):
-        domain = self._profile.getProfile().getDomain()
-        self._opponent_model: FrequencyOpponentModel = FrequencyOpponentModel.create().With(domain, newResBid=None)
+        self._opponent_model: FrequencyOpponentModel = FrequencyOpponentModel.create().With(self.domain, newResBid=None)

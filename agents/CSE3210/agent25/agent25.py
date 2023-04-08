@@ -60,6 +60,8 @@ class Agent25(DefaultParty):
         self._session_progress: Union[Progress, None] = None
         self._session_settings: Union[Settings, None] = None
         self._uri: Union[URI, None] = None
+        self.profile = None
+        self.domain = None
 
         self.getReporter().log(logging.INFO, "Agent initialized")
 
@@ -86,8 +88,14 @@ class Agent25(DefaultParty):
                 self.getConnection().send(LearningDone(self._id))
 
             else:
-                self._profile = ProfileConnectionFactory.create(info.getProfile().getURI(), self.getReporter())
-                profile = self._profile.getProfile()
+                # the profile contains the preferences of the agent over the domain
+                profile_connection = ProfileConnectionFactory.create(
+                    data.getProfile().getURI(), self.getReporter()
+                )
+                self.profile = profile_connection.getProfile()
+                self.domain = self.profile.getDomain()
+                profile_connection.close()
+                profile = self.profile
 
                 # Finds all possible bids the agent can make and their corresponding utilities.
                 if isinstance(profile, UtilitySpace):
@@ -218,7 +226,7 @@ class Agent25(DefaultParty):
         if bid is None:
             return False
 
-        profile: Profile = self._profile.getProfile()
+        profile: Profile = self.profile
 
         if isinstance(profile, UtilitySpace):
             time_modifier = self._session_progress.get(int(time.time())) ** self._accept_concession_param
@@ -239,7 +247,7 @@ class Agent25(DefaultParty):
     def _create_bid(self) -> Bid:
         time_modifier = self._session_progress.get(int(time.time())) ** self._offer_concession_param
 
-        profile: Profile = self._profile.getProfile()
+        profile: Profile = self.profile
 
         # The target utility for the agent's bid this round according to its strategy.
         ideal_utility = 1.0 - time_modifier

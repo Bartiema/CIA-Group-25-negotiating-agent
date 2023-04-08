@@ -35,6 +35,8 @@ class TemplateAgent(DefaultParty):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
+        self.profile = None
+        self.domain = None
 
         self._utility = AgentUtility()
         self._strategy = AgressiveBiddingStrategy(utility=self._utility)
@@ -59,13 +61,16 @@ class TemplateAgent(DefaultParty):
             self._progress: Progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
-            self._strategy.set_profile(self._profile)
-            self._utility.set_profile(self._profile)
-            self._acceptance.set_profile(self._profile)
+            self._strategy.set_profile(self.profile)
+            self._utility.set_profile(self.profile)
+            self._acceptance.set_profile(self.profile)
 
             self._acceptance.set_progress(self._progress)
             self._utility.set_progress(self._progress)
@@ -193,7 +198,7 @@ class AgressiveAtStartAgent(TemplateAgent):
                     self.ratings += 1
 
             if self.ratings == 3 and self._progress.get(time.time() * 1000) > 0.25:
-                self._strategy = BiddingStrategyDeterministic(utility=self._utility, profile=self._profile)
+                self._strategy = BiddingStrategyDeterministic(utility=self._utility, profile=self.profile)
                 self.switched = True
         else:
             opponent_issue_percentage = self._utility.get_opponent_issue_count()
@@ -206,7 +211,7 @@ class AgressiveAtStartAgent(TemplateAgent):
                     self.ratings = 0
 
             if self.ratings == 3:
-                self._strategy = BiddingStrategyDeterministic(utility=self._utility, profile=self._profile)
+                self._strategy = BiddingStrategyDeterministic(utility=self._utility, profile=self.profile)
 
 class AgressiveAtStartWithOpponentAcceptance(AgressiveAtStartAgent):
 
@@ -226,6 +231,6 @@ class Agent33(AgressiveAtStartAgent):
     def _findBid(self) -> Bid:
         bid = self._strategy.get_bid()
         if not self._isGood(bid):
-            self._strategy = BiddingStrategyProbalistic(utility=self._utility, profile=self._profile)
+            self._strategy = BiddingStrategyProbalistic(utility=self._utility, profile=self.profile)
             return self._findBid()
         return bid

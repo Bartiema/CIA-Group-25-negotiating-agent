@@ -39,6 +39,8 @@ class Agent22(DefaultParty):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile: ProfileInterface = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid: Bid = None
         self._progress: Progress = None  # type:ignore
         self._extendedspace: ExtendedUtilSpace = None
@@ -68,11 +70,14 @@ class Agent22(DefaultParty):
             self._progress: Progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
-            profile: LinearAdditive = self._profile.getProfile()
+            profile: LinearAdditive = self.profile
             self.weightList = profile.getWeights()
             self.issue_names = list(self.weightList.keys())
             n = len(self.issue_names)
@@ -152,7 +157,7 @@ class Agent22(DefaultParty):
         return action
 
     def _updateExtUtilSpace(self):  # throws IOException
-        new_utilspace: LinearAdditive = self._profile.getProfile()
+        new_utilspace: LinearAdditive = self.profile
         self._extendedspace = ExtendedUtilSpace(new_utilspace)
 
     def _findBid(self) -> Bid:
@@ -181,7 +186,7 @@ class Agent22(DefaultParty):
             self.issue_value_frequencies[issue][value] += 1
 
     def _evaluate_bid(self, bid: Bid):
-        profile = self._profile.getProfile()
+        profile = self.profile
         progress = self._progress.get(time.time() * 1000)
 
         U_mine = profile.getUtility(bid)
@@ -213,7 +218,7 @@ class Agent22(DefaultParty):
         # W = [T - (1 - T), T]
         if bid is None:
             return False
-        profile = self._profile.getProfile()
+        profile = self.profile
 
         progress = self._progress.get(time.time() * 1000)
         bidsFromW = []
@@ -249,7 +254,7 @@ class Agent22(DefaultParty):
 
     def time_dependent_bidding(self, beta: float) -> Bid:
         progress: float = self._progress.get(time.time() * 1000)
-        profile = self._profile.getProfile()
+        profile = self.profile
 
         reservation_bid: Bid = profile.getReservationBid()
         min_util = Decimal(0.6)  # reservation value

@@ -50,6 +50,8 @@ class Agent7(DefaultParty):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile: ProfileRef = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid: Bid = None
         self._last_offer: Bid = None
 
@@ -77,9 +79,12 @@ class Agent7(DefaultParty):
             self._progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
             ####Very important line to set up the list of possible values####
             ####Takes a lot of time####
             self._createLists()
@@ -149,7 +154,7 @@ class Agent7(DefaultParty):
     def _isGood(self, bid: Bid) -> bool:
         if bid is None:
             return False
-        profile = self._profile.getProfile()
+        profile = self.profile
 
         progress = self._progress.get(time.time() * 1000)
 
@@ -229,9 +234,9 @@ class Agent7(DefaultParty):
                 return bid
 
     def _createIssueMap(self):
-        lau: LinearAdditive = cast(LinearAdditive, self._profile.getProfile())
+        lau: LinearAdditive = cast(LinearAdditive, self.profile)
 
-        issues = self._profile.getProfile().getDomain().getIssues();
+        issues = self.domain.getIssues();
 
         for issue in issues:
             self._issue_by_weight[issue] = lau.getWeight(issue)
@@ -246,14 +251,14 @@ class Agent7(DefaultParty):
             # Find all trade offers possible with same utility
             current_bid = self._last_offer.getIssueValues()
 
-            lau: LinearAdditive = cast(LinearAdditive, self._profile.getProfile())
+            lau: LinearAdditive = cast(LinearAdditive, self.profile)
 
-            issues = self._profile.getProfile().getDomain().getIssues();
+            issues = self.domain.getIssues();
             utils = lau.getUtilities()
 
             for issue in issues:
                 weight = lau.getWeight(issue)
-                values = self._profile.getProfile().getDomain().getIssuesValues()[issue]
+                values = self.domain.getIssuesValues()[issue]
                 valueSet: ValueSetUtilities = utils.get(issue)
 
                 for value in values:
@@ -319,8 +324,8 @@ class Agent7(DefaultParty):
         return Bid(current_bid)"""
 
     def _createLists(self):
-        profile = self._profile.getProfile()
-        domain = self._profile.getProfile().getDomain()
+        profile = self.profile
+        domain = self.domain
         all_bids = AllBidsList(domain)
 
         for bid in all_bids:

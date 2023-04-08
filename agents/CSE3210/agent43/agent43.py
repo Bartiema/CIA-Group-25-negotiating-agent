@@ -38,6 +38,8 @@ class Agent43(DefaultParty):
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
+        self.profile = None
+        self.domain = None
         self._profile = None
         self._me: PartyId = None
         self._last_received_bid: Bid = None
@@ -113,23 +115,27 @@ class Agent43(DefaultParty):
         self._progress: ProgressRounds = self._settings.getProgress()
 
         # The profile contains the preferences of the agent over the domain
-        self._profile = ProfileConnectionFactory.create(
-            info.getProfile().getURI(), self.getReporter()
+        # the profile contains the preferences of the agent over the domain
+        profile_connection = ProfileConnectionFactory.create(
+            data.getProfile().getURI(), self.getReporter()
         )
+        self.profile = profile_connection.getProfile()
+        self.domain = self.profile.getDomain()
+        profile_connection.close()
 
         # Create bids and opponent model
-        self._bids_with_util = BidsWithUtility.create(cast(LinearAdditive, self._profile.getProfile()))
+        self._bids_with_util = BidsWithUtility.create(cast(LinearAdditive, self.profile))
         opponent_model : Dict[str, Dict[Value, float]] = {}
 
         # Init issues and set values to 0.5 for all issues
-        for issue in self._profile.getProfile().getDomain().getIssues():
+        for issue in self.domain.getIssues():
             for_issue : Dict[Value, float] = {}
-            for value in self._profile.getProfile().getDomain().getValues(issue):
+            for value in self.domain.getValues(issue):
                 for_issue[value] = 0.5
             opponent_model[issue] = for_issue
 
         # Init Frequency opponent model
-        self._frequency_opponent_model = FrequencyOpponentModel(self._profile.getProfile().getDomain(), opponent_model, 0, None)
+        self._frequency_opponent_model = FrequencyOpponentModel(self.domain, opponent_model, 0, None)
         # self._frequency_opponent_model = FrequencyOpponentModel.create().With(self._profile.getProfile().getDomain(), None)
 
         ### PREVIOUS IMPLEMENTATION ###
@@ -154,8 +160,8 @@ class Agent43(DefaultParty):
                 self._updateOpponentModel(action)
 
             # Update highest uility received so far by an opponent's offer
-            if self._profile.getProfile().getUtility(cast(Offer, action).getBid()) > self._highest_received_utility:
-                self._highest_received_utility = self._profile.getProfile().getUtility(cast(Offer, action).getBid())
+            if self.profile.getUtility(cast(Offer, action).getBid()) > self._highest_received_utility:
+                self._highest_received_utility = self.profile.getUtility(cast(Offer, action).getBid())
 
             self._last_received_bid = cast(Offer, action).getBid()
         pass
@@ -171,11 +177,11 @@ class Agent43(DefaultParty):
         progress_so_far = self._progress.get(time.time() * 1000)
 
         # Compute reservation value if it exists
-        res_bid = self._profile.getProfile().getReservationBid()
+        res_bid = self.profile.getReservationBid()
         res_value_satisfied = True
         if res_bid is not None:
-            reservation_value = self._profile.getProfile().getUtility(self._profile.getProfile().getReservationBid())
-            res_value_satisfied = (self._profile.getProfile().getUtility(self._last_received_bid) > reservation_value)
+            reservation_value = self.profile.getUtility(self.profile.getReservationBid())
+            res_value_satisfied = (self.profile.getUtility(self._last_received_bid) > reservation_value)
 
         # Check if the last received offer of the opponent is good enough, and set window
         if progress_so_far > 0.5:
@@ -204,7 +210,7 @@ class Agent43(DefaultParty):
 
         # If we dont receive a bid
         if (self._last_received_bid != None):
-            self._tracker.append(self._profile.getProfile().getUtility(self._last_received_bid))
+            self._tracker.append(self.profile.getUtility(self._last_received_bid))
 
         # Send the action
         return action
@@ -215,7 +221,7 @@ class Agent43(DefaultParty):
         percentage = pow(self._progress.get(time.time() * 1000), 1 / self._conceding_parameter)
         # bid_threshold = self._our_utilities[round((1 - percentage) * (len(self._our_utilities) - 1))]
         # threshold = self._profile.getProfile().getUtility(bid_threshold)
-        util_received_last = self._profile.getProfile().getUtility(self._last_received_bid)
+        util_received_last = self.profile.getUtility(self._last_received_bid)
         return util_received_last >= percentage and (util_received_last >= self._highest_received_utility)
 
     # Construct the time window and compute acceptance condition
@@ -225,11 +231,11 @@ class Agent43(DefaultParty):
         higher = round(length * window[1])
         utilitiesWindow = self._tracker[lower:higher]
         maxUtil = max(utilitiesWindow)
-        util_recieved_last = self._profile.getProfile().getUtility(self._last_received_bid)
+        util_recieved_last = self.profile.getUtility(self._last_received_bid)
         self._progress.get(time.time() * 1000)
 
         # Acceptance condition next
-        AC_next = (util_recieved_last > self._profile.getProfile().getUtility(self._findBid()))
+        AC_next = (util_recieved_last > self.profile.getUtility(self._findBid()))
 
         if util_recieved_last >= maxUtil and self._acceptance_time() and AC_next:
             return True
@@ -238,7 +244,7 @@ class Agent43(DefaultParty):
 
     # Update Utility space.
     def _updateUtilSpace(self) -> LinearAdditive:  # throws IOException
-        newutilspace = self._profile.getProfile()
+        newutilspace = self.profile
         if not newutilspace == self._util_space:
             self._util_space = cast(LinearAdditive, newutilspace)
             self._extended_space = ExtendedUtilSpace(self._util_space)
@@ -246,7 +252,7 @@ class Agent43(DefaultParty):
 
     # Find utility of a given offer
     def findUtility(self, bid):
-        return self._profile.getProfile().getUtility(bid)
+        return self.profile.getUtility(bid)
 
     # Update opponent model and derive some social welfare results
     def _updateOpponentModel(self, offer: Action):

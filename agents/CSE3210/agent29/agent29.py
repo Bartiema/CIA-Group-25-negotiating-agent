@@ -49,7 +49,8 @@ class Agent29(DefaultParty):
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
-        self._profile = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid = None
         self._reservation_value = 0.0
         self._all_opponent_bids: list[Bid] = []
@@ -81,9 +82,12 @@ class Agent29(DefaultParty):
             self._progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
             # initialises the histogram opponent modelling
             self.initialise_bid_counts()
@@ -159,9 +163,9 @@ class Agent29(DefaultParty):
             action = Accept(self._me, self._last_received_bid)
         # checks if the negotiation is nearing the end. If so, the best received offer is sent
         elif self._progress.get(time.time() * 1000) >= 0.95:
-            opp_bids_utilities = [self._profile.getProfile().getUtility(bid) for bid in self._all_opponent_bids]
+            opp_bids_utilities = [self.profile.getUtility(bid) for bid in self._all_opponent_bids]
             best_opponent_bid = self._all_opponent_bids[np.argmax(opp_bids_utilities)]
-            if self._profile.getProfile().getUtility(best_opponent_bid) >= self._reservation_value:
+            if self.profile.getUtility(best_opponent_bid) >= self._reservation_value:
                 action = Offer(self._me, best_opponent_bid)
             else:
                 action = Offer(self._me, self._findBid())
@@ -193,7 +197,7 @@ class Agent29(DefaultParty):
         else:  # if the histogram is not initialised, offer random bids
             # initialize the bid to something above reservation value
             best_bid = self.find_first_acceptable_bid()
-            best_bid_util = self._profile.getProfile().getUtility(best_bid)
+            best_bid_util = self.profile.getUtility(best_bid)
 
             # take attempts at finding a random bid that is acceptable to us
             best_bid = self.find_random_acceptable_bid(best_bid, best_bid_util)
@@ -228,7 +232,7 @@ class Agent29(DefaultParty):
             return self._significantImprovement(bid, 0.5)
 
         # last part - this only gets executed if opponent doesn't accept an offer they sent previously.
-        return self._profile.getProfile().getUtility(bid) > self._reservation_value
+        return self.profile.getUtility(bid) > self._reservation_value
 
     """
     Check whether the offered bid has a utility greater than 0.8 (as well as greater than our reservation value)
@@ -238,7 +242,7 @@ class Agent29(DefaultParty):
     def _isGoodDomainAgent(self, bid: Bid) -> bool:
         if bid is None:
             return False
-        bid_util = self._profile.getProfile().getUtility(bid)
+        bid_util = self.profile.getUtility(bid)
         return bid_util > 0.8 and bid_util > self._reservation_value
 
     """
@@ -253,19 +257,19 @@ class Agent29(DefaultParty):
             return False
 
         # numpy average computation
-        get_util = lambda x: float(self._profile.getProfile().getUtility(x))
+        get_util = lambda x: float(self.profile.getUtility(x))
         vgu = np.vectorize(get_util)
         average = np.average(vgu(self._all_opponent_bids))
 
-        return float(self._profile.getProfile().getUtility(bid)) > average + significance and \
-               float(self._profile.getProfile().getUtility(bid)) > self._reservation_value
+        return float(self.profile.getUtility(bid)) > average + significance and \
+               float(self.profile.getUtility(bid)) > self._reservation_value
 
     """
     Initializes an empty histogram for use in the domain modeling. 
     """
 
     def initialise_bid_counts(self):
-        domain = self._profile.getProfile().getDomain()
+        domain = self.profile.getDomain()
         domain_issues = domain.getIssues()
 
         self._num_possible_bids = 1
@@ -281,11 +285,11 @@ class Agent29(DefaultParty):
     """
 
     def initialise_all_possible_bids(self):
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         self._all_possible_bids = AllBidsList(domain)
         for i in range(self._all_possible_bids.size()):
             current_bid = self._all_possible_bids.get(i)
-            self._all_possible_bids_utils.append(self._profile.getProfile().getUtility(current_bid))
+            self._all_possible_bids_utils.append(self.profile.getUtility(current_bid))
         self._all_possible_bids_utils = np.array(self._all_possible_bids_utils)
         sort_indices = np.argsort(self._all_possible_bids_utils)
         for i in range(self._all_possible_bids.size()):
@@ -300,16 +304,16 @@ class Agent29(DefaultParty):
     """
 
     def initialise_reservation_value(self):
-        reservation_bid = self._profile.getProfile().getReservationBid()
+        reservation_bid = self.profile.getReservationBid()
         if reservation_bid is not None:
-            self._reservation_value = self._profile.getProfile().getUtility(reservation_bid)
+            self._reservation_value = self.profile.getUtility(reservation_bid)
 
     """
     If the last received bid is not empty, add it to the histogram
     """
 
     def _count_last_bid(self):
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         domain_issues = domain.getIssues()
 
         for issue in domain_issues:
@@ -323,7 +327,7 @@ class Agent29(DefaultParty):
     """
 
     def _uncount_oldest_bid(self):
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         domain_issues = domain.getIssues()
 
         for issue in domain_issues:
@@ -336,7 +340,7 @@ class Agent29(DefaultParty):
     """
 
     def domain_similarity(self, bid: Bid):
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         domain_issues = domain.getIssues()
         num_issues = len(domain_issues)
 
@@ -438,7 +442,7 @@ class Agent29(DefaultParty):
     def remove_bids_below_reservation(self, bids_to_consider):
         acceptable_bids = []
         for i in range(len(bids_to_consider)):
-            if self._profile.getProfile().getUtility(bids_to_consider[i]) >= self._reservation_value:
+            if self.profile.getUtility(bids_to_consider[i]) >= self._reservation_value:
                 acceptable_bids.append(bids_to_consider[i])
         return acceptable_bids
 
@@ -465,7 +469,7 @@ class Agent29(DefaultParty):
                 best_bid = bid
                 break
             # if the bid is not good but better than the best so far, update it
-            if self._profile.getProfile().getUtility(bid) > best_bid_util:
+            if self.profile.getUtility(bid) > best_bid_util:
                 best_bid = bid
-                best_bid_util = self._profile.getProfile().getUtility(bid)
+                best_bid_util = self.profile.getUtility(bid)
         return best_bid

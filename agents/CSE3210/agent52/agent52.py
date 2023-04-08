@@ -31,6 +31,8 @@ class Agent52(DefaultParty):
 
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
+        self.domain = None
+        self.profile = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
         self._last_received_bid: Bid = None
@@ -57,19 +59,22 @@ class Agent52(DefaultParty):
             self._progress: ProgressRounds = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
             # Create the weighted frequency model
-            self._opp_model = FreqModelWeighted.create().With(self._profile.getProfile().getDomain(), None)
+            self._opp_model = FreqModelWeighted.create().With(self.domain, None)
             self._opp_model.__class__ = FreqModelWeighted
 
 
             # Generate sorted (decr.) list of all possible bids with their corresponding utility values
             # Create reservation value after
-            profile = self._profile.getProfile()
-            allBids = AllBidsList(self._profile.getProfile().getDomain())
+            profile = self.profile
+            allBids = AllBidsList(self.domain)
             self._bid_utility_tuple = [(bid, profile.getUtility(bid)) for bid in allBids]
             self._bid_utility_tuple.sort(key=itemgetter(1), reverse=True)
 
@@ -132,7 +137,7 @@ class Agent52(DefaultParty):
         self._opp_model.updateIssueWeights()
 
         # Update the best bid offered by the opponent if the last received bid is better for us
-        profile = self._profile.getProfile()
+        profile = self.profile
         self._opp_best_bid = self._last_received_bid \
             if self._opp_best_bid is None or profile.getUtility(self._last_received_bid) > profile.getUtility(self._opp_best_bid) \
             else self._opp_best_bid
@@ -165,7 +170,7 @@ class Agent52(DefaultParty):
             return False
 
         # progress represents fraction of negotiation that has passed
-        profile = self._profile.getProfile()
+        profile = self.profile
         progress = self._progress.get(time.time() * 1000)
 
         # AC_next or AC_combi if we are in phase [T, 1]
@@ -178,17 +183,17 @@ class Agent52(DefaultParty):
     """
     def _window_max(self):
         # check if better than maximum utility in past window
-        profile = self._profile.getProfile()
+        profile = self.profile
         return profile.getUtility(self._last_received_bid) >= np.max(self._opp_bids_window)
 
     def _window_avg(self):
         # check if better than average utility in past window
-        profile = self._profile.getProfile()
+        profile = self.profile
         return profile.getUtility(self._last_received_bid) >= np.mean(self._opp_bids_window)
 
     def _overall_max(self):
         # check if better than maximum utility received in entire negotiation
-        profile = self._profile.getProfile()
+        profile = self.profile
         return profile.getUtility(self._last_received_bid) >= profile.getUtility(self._opp_best_bid)
 
     """

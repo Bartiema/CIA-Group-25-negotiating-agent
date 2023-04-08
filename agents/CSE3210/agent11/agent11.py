@@ -33,6 +33,8 @@ class Agent11(DefaultParty):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid = None
 
         self.sorted_bids = None
@@ -66,11 +68,14 @@ class Agent11(DefaultParty):
             self._progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
             # initialize opponent model
-            self.opponent_model = MyOpponentModel.create().With(self._profile.getProfile().getDomain(), None)
+            self.opponent_model = MyOpponentModel.create().With(self.domain, None)
             # self.opponent_model = FrequencyOpponentModel.create().With(self._profile.getProfile().getDomain(), None)
 
         # ActionDone is an action send by an opponent (an offer or an accept)
@@ -157,17 +162,17 @@ class Agent11(DefaultParty):
         good_for_me = utilities[0] >= 0.6
         time_spend = self._progress.get(time.time() * 1000) >= 0.8
         better_than_last_offered = self._last_offered_bid and utilities_prev_offered_bid[0] <= utilities[0]
-        better_than_reservation_value = self._profile.getProfile().getReservationBid() and self._profile \
-            .getProfile().getReservationBid() <= good_for_me
+        better_than_reservation_value = self.profile.getReservationBid() and self.profile \
+            .getReservationBid() <= good_for_me
 
         return ((good_for_me and time_spend) and better_than_reservation_value) or better_than_last_offered
 
     def _findBid(self) -> Bid:
         # compose a list of all possible bids
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         all_bids = AllBidsList(domain)
         if not self.sorted_bids:
-            self.sorted_bids = sorted(all_bids, key=lambda x: self._profile.getProfile().getUtility(x), reverse=True)
+            self.sorted_bids = sorted(all_bids, key=lambda x: self.profile.getUtility(x), reverse=True)
 
         if self._progress.get(time.time() * 1000) < self.concede_range:
             bid_index = random.randint(0, int(len(self.sorted_bids) * 0.005))
@@ -222,7 +227,7 @@ class Agent11(DefaultParty):
         """
         if not bid:
             return 0, 0
-        own_utility = self._profile.getProfile().getUtility(bid)
+        own_utility = self.profile.getUtility(bid)
         opponent_utility = self.opponent_model.getUtility(bid)
         if verbose:
             self.getReporter().log(logging.INFO,

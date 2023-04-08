@@ -40,6 +40,8 @@ class Agent24(DefaultParty):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid: Bid = None
         self._opponent_model = FrequencyOpponentModel.FrequencyOpponentModel.create()
         self._issue_weights = []
@@ -61,9 +63,12 @@ class Agent24(DefaultParty):
             self._progress: ProgressRounds = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
             action: Action = cast(ActionDone, info).getAction()
@@ -157,14 +162,14 @@ class Agent24(DefaultParty):
     def _isOpponentBidGood(self, bid: Bid) -> bool:
         if bid is None:
             return False
-        profile = self._profile.getProfile()
+        profile = self.profile
         progress = self._progress.get(time.time() * 1000)
 
         # set reservation value
-        if self._profile.getProfile().getReservationBid() is None:
+        if self.profile.getReservationBid() is None:
             reservation = 0.0
         else:
-            reservation = profile.getUtility(self._profile.getProfile().getReservationBid())
+            reservation = profile.getUtility(self.profile.getReservationBid())
 
         # ACconst
         if profile.getUtility(bid) >= 0.99:
@@ -186,8 +191,8 @@ class Agent24(DefaultParty):
         # compose a list of all possible bids
         changed_utility = self._previous_bid_enemy - utility
 
-        domain = self._profile.getProfile().getDomain()
-        profile = self._profile.getProfile()
+        domain = self.domain
+        profile = self.profile
         all_bids = AllBidsList(domain)
 
         found = False

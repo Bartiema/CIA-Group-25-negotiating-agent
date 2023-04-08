@@ -15,12 +15,12 @@ class AbstractAcceptanceStrategy:
     """
 
     def __init__(self, profile: Profile = None, progress: Progress = None, utility: AgentUtility = None):
-        self._profile = profile
+        self.profile = profile
         self._progress = progress
         self._utility = utility
 
     def set_profile(self, profile):
-        self._profile = profile
+        self.profile = profile
 
     def set_progress(self, progress):
         self._progress = progress
@@ -40,7 +40,7 @@ class CombiAcceptanceStrategy(AbstractAcceptanceStrategy):
         acceptance strategy based on combination of time and is bid better than next.
         """
         progress = self._progress.get(time.time() * 1000)
-        profile: Profile = self._profile.getProfile()
+        profile: Profile = self.profile
         reservation_bid = profile.getReservationBid()
         if reservation_bid is not None:
             return (self._isGoodLastBidBetterThanNext(bid) or (progress > .8 and self._isGoodAdjustingConstant(bid))) \
@@ -55,7 +55,7 @@ class CombiAcceptanceStrategy(AbstractAcceptanceStrategy):
         if bid is None:
             return False
 
-        profile = self._profile.getProfile()
+        profile = self.profile
         utilityBid = profile.getUtility(bid)
         utilityNextBid = self._utility.get_last_own_bid_utility()
         return utilityBid > utilityNextBid
@@ -66,7 +66,7 @@ class CombiAcceptanceStrategy(AbstractAcceptanceStrategy):
         """
         if bid is None:
             return False
-        profile = self._profile.getProfile()
+        profile = self.profile
         bidHistory, utilityHistory, bools = list(zip(*self._utility.get_bid_history()))
         alpha = max(0.7, max(utilityHistory))  # can also be exchanged for average, base alpha can also be adjusted
 
@@ -82,7 +82,7 @@ class BetterThanOwnAcceptanceStrategy(AbstractAcceptanceStrategy):
         if bid is None:
             return False
 
-        profile = self._profile.getProfile()
+        profile = self.profile
         progress = self._progress.get(time.time() * 1000)
 
         max_util = self._last_made_bid_utility if hasattr(self, "_last_made_bid_utility") else 1
@@ -109,13 +109,13 @@ class BetterThanEstimated(AbstractAcceptanceStrategy):
         to accept the bid based on the progress of the negotiation.
         """
         opponent_utility = self.get_utility(bid)
-        own_utility = self._profile.getProfile().getUtility(bid).__float__()
+        own_utility = self.profile.getUtility(bid).__float__()
         max_difference = (np.e ** -(1 - (self._progress.get(time.time() * 1000) ** 2))) / self.fall_off_difference
 
-        reservation_bid = self._profile.getProfile().getReservationBid()
+        reservation_bid = self.profile.getReservationBid()
         if reservation_bid is not None:
             return (own_utility - opponent_utility) > -max_difference and (own_utility > (1 - max_difference * self.fall_off_util)) and \
-                   self._profile.getProfile().isPreferredOrEqual(self._profile.getProfile().getReservationBid(), bid)
+                   self.profile.isPreferredOrEqual(self.profile.getReservationBid(), bid)
 
         else:
             return (own_utility - opponent_utility) > -max_difference and (own_utility > (1 - max_difference * self.fall_off_util))

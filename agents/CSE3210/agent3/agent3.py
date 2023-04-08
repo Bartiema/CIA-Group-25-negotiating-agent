@@ -38,6 +38,8 @@ class Agent3(DefaultParty):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
+        self.profile = None
+        self.domain = None
         # Last bid sent by this agent
         self._my_last_bid: Bid = None
         # Last bid received from the opponent
@@ -98,13 +100,16 @@ class Agent3(DefaultParty):
             # Progress towards the deadline has to be tracked manually through the use of the Progress object
             self._progress: ProgressRounds = self._settings.getProgress()
 
-            # Profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            # the profile contains the preferences of the agent over the domain
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
             # Store reservation utility if it exists
-            profile = self._profile.getProfile()
+            profile = self.profile
             if profile.getReservationBid():
                 self._reservation_utility = profile.getUtility(profile.getReservationBid())
             else:
@@ -204,7 +209,7 @@ class Agent3(DefaultParty):
         if self._best_received_bid is None:
             self._best_received_bid = bid
 
-        profile = self._profile.getProfile()
+        profile = self.profile
         progress = self._progress.get(time.time() * 1000)
 
         # Find our utility for the opponent's bid
@@ -304,7 +309,7 @@ class Agent3(DefaultParty):
             Dict: Statistics of the opponent's bids initialized to 0
         """
         stats = dict()
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
 
         # Create a dictionary for every issue in the domain
         for issue in domain.getIssues():
@@ -319,7 +324,7 @@ class Agent3(DefaultParty):
         """Before the negotiation starts, generate dictionaries storing the opponent's
         decisions and the model of their utility function
         """
-        utilities = self._profile.getProfile().getUtilities()
+        utilities = self.profile.getUtilities()
         self._last_bid_to_process = dict()
         self._opponent_weights = dict()  # Predictions for the weights of every issue
         self._opponent_value_weights = dict()  # Predictions for the weights of every value
@@ -366,11 +371,11 @@ class Agent3(DefaultParty):
         They are sorted based on decreasing utility first, and later based on welfare.
         """
 
-        bids = BidsWithUtility.create(cast(LinearAdditive, self._profile.getProfile()))
+        bids = BidsWithUtility.create(cast(LinearAdditive, self.profile))
         range = bids.getRange()
 
         domain_spread = range.getMax() - range.getMin()
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         all_bids = AllBidsList(domain)
         domain_size = all_bids.size()
         possible_bids = []
@@ -380,7 +385,7 @@ class Agent3(DefaultParty):
             interval = Interval(Decimal(self._reservation_utility), Decimal(1.0))
             for bid in bids.getBids(interval):
                 # Calculate bid utility
-                utility = self._profile.getProfile().getUtility(bid)
+                utility = self.profile.getUtility(bid)
                 # Save along with bid and the opponent's utility (to be calculated later)
                 possible_bids.append([bid, utility, 0])
 
@@ -397,19 +402,19 @@ class Agent3(DefaultParty):
             min_utility = range.getMax() - (domain_spread * 50000) / domain_size
             interval = Interval(Decimal(min_utility), range.getMax())
             for bid in bids.getBids(interval):
-                bid_utility = self._profile.getProfile().getUtility(bid)
+                bid_utility = self.profile.getUtility(bid)
                 if bid != max_bid and bid_utility > self._reservation_utility:
                     possible_bids.append([bid, bid_utility, 0])
 
             count = 0
             while count <= 40000:
                 bid = all_bids.get(np.random.randint(0, domain_size - 1))
-                if self._profile.getProfile().getUtility(bid) > self._reservation_utility:
-                    possible_bids.append([bid, self._profile.getProfile().getUtility(bid), 0])
+                if self.profile.getUtility(bid) > self._reservation_utility:
+                    possible_bids.append([bid, self.profile.getUtility(bid), 0])
                 count += 1
 
             # We always want at least one bid
-            possible_bids.append([max_bid, self._profile.getProfile().getUtility(max_bid), 0])
+            possible_bids.append([max_bid, self.profile.getUtility(max_bid), 0])
             # Sort by utility in descending order
             possible_bids.sort(key=lambda x: x[1], reverse=True)
             self._possible_bids = possible_bids
@@ -431,7 +436,7 @@ class Agent3(DefaultParty):
         Returns:
             Decimal: Prediction of the welfare of a bid
         """
-        own_utility = self._profile.getProfile().getUtility(bid)
+        own_utility = self.profile.getUtility(bid)
         opponent_utility = self._calculate_opponent_utility(bid)
 
         if method == "weighted_sum":
@@ -451,7 +456,7 @@ class Agent3(DefaultParty):
         Returns:
             float: Prediction of the utility of a bid for the opponent
         """
-        domain = self._profile.getProfile().getDomain()
+        domain = self.domain
         opponent_utility = 0
         for issue in domain.getIssues():
             opponent_utility += self._opponent_weights[issue] \

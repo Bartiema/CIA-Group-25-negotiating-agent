@@ -37,6 +37,8 @@ class Agent68(DefaultParty):
 
     def __init__(self, reporter: Reporter = None):
         super().__init__(reporter)
+        self.profile = None
+        self.domain = None
         self._progress = None
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
@@ -72,8 +74,15 @@ class Agent68(DefaultParty):
             self._profile = ProfileConnectionFactory.create(
                 info.getProfile().getURI(), self.getReporter()
             )
+            # the profile contains the preferences of the agent over the domain
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
+            )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
-            self._opponent = self._opponent.With(self._profile.getProfile().getDomain(), None)
+            self._opponent = self._opponent.With(self.domain, None)
 
             self._getParams()
             self._bidding.initBidding(cast(Settings, info), self.getReporter())

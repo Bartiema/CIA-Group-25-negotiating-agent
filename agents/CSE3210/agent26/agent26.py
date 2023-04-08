@@ -39,6 +39,8 @@ class Agent26(DefaultParty):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid: Bid = None
         self.offers_received: Dict[(str, Value), Decimal] = {}
         self._beta = 0.05
@@ -69,11 +71,15 @@ class Agent26(DefaultParty):
             self._full_time = self._progress.getTerminationTime().timestamp() - datetime.datetime.now().timestamp()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
-            if self._profile.getProfile().getReservationBid() is not None:
-                self._reservation = self._profile.getProfile().getReservationBid()
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
+
+            if self.profile.getReservationBid() is not None:
+                self._reservation = self.profile.getReservationBid()
 
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
@@ -159,7 +165,7 @@ class Agent26(DefaultParty):
         # If there is no bid the agent rejects
         if bid is None:
             return False
-        profile = self._profile.getProfile()
+        profile = self.profile
         # Checks the average round time
         if self._avg_time is not None:
             # If we are coming close to time deadline the agent drastically go low by changing the beta
@@ -174,7 +180,7 @@ class Agent26(DefaultParty):
 
     def _findBid(self) -> Bid:
         progress = self._progress.get(1)
-        bids_with_utility = BidsWithUtility.create(self._profile.getProfile(), 5)
+        bids_with_utility = BidsWithUtility.create(self.profile, 5)
         # Calculate the maximum utility (self._accept is the minimum utility we accept calculated by
         # time dependent formula)
         max_bid = self._accept + self._range

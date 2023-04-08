@@ -130,6 +130,8 @@ class Agent19(DefaultParty):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
+        self.profile = None
+        self.domain = None
         self._last_received_bid: Bid = None
         self._sortedList = None
         self._opponent = None
@@ -162,11 +164,14 @@ class Agent19(DefaultParty):
             self._progress: ProgressRounds = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
             opponent = FrequencyOpponentModel.create()
-            opponent = opponent.With(self._profile.getProfile().getDomain(), None)
+            opponent = opponent.With(self.domain, None)
             self._opponent = opponent
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
@@ -231,7 +236,7 @@ class Agent19(DefaultParty):
             self.acceptinator.currentBid = bid
 
             # process the bid in the acceptinator
-            self.acceptinator.process_bid_utility(self._profile.getProfile().getUtility(bid), b)
+            self.acceptinator.process_bid_utility(self.profile.getUtility(bid), b)
 
 
 
@@ -248,7 +253,7 @@ class Agent19(DefaultParty):
         if bid is None:
             return False
 
-        profile = self._profile.getProfile()
+        profile = self.profile
 
         progress = self._progress.get(1)
 
@@ -267,8 +272,8 @@ class Agent19(DefaultParty):
     def _findBid(self) -> Bid:
         # compose a list of all possible bids
 
-        domain = self._profile.getProfile().getDomain()
-        profile = self._profile.getProfile()
+        domain = self.domain
+        profile = self.profile
         progress = self._progress.get(1)
 
         if (self._sortedList == None):

@@ -48,6 +48,8 @@ class Agent18(DefaultParty):
         super().__init__(reporter)
         self.getReporter().log(logging.INFO, "party is initialized")
         self._profile = None
+        self.profile = None
+        self.domain = None
         # Stores the last received bid
         self._last_received_bid: Bid = None
         # List of all received bids
@@ -85,15 +87,18 @@ class Agent18(DefaultParty):
             self._progress: Progress = self._settings.getProgress()
 
             # the profile contains the preferences of the agent over the domain
-            self._profile = ProfileConnectionFactory.create(
-                info.getProfile().getURI(), self.getReporter()
+            profile_connection = ProfileConnectionFactory.create(
+                data.getProfile().getURI(), self.getReporter()
             )
+            self.profile = profile_connection.getProfile()
+            self.domain = self.profile.getDomain()
+            profile_connection.close()
 
-            self._bid_list = sorted(AllBidsList(self._profile.getProfile().getDomain()),
-                                    key=self._profile.getProfile().getUtility, reverse=True)
-            self._opponent_model = freq_opp_mod.FrequencyOpponentModel(self._profile.getProfile().getDomain(), {}, 0,
+            self._bid_list = sorted(AllBidsList(self.domain),
+                                    key=self.profile.getUtility, reverse=True)
+            self._opponent_model = freq_opp_mod.FrequencyOpponentModel(self.domain, {}, 0,
                                                                        None).With(
-                self._profile.getProfile().getDomain(), None)
+                self.domain, None)
         # ActionDone is an action send by an opponent (an offer or an accept)
         elif isinstance(info, ActionDone):
             action: Action = cast(ActionDone, info).getAction()
@@ -154,9 +159,9 @@ class Agent18(DefaultParty):
     # execute a turn
     def _myTurn(self):
         # Update best received utility
-        if self._last_received_bid is not None and self._best_received_utility < self._profile.getProfile().getUtility(
+        if self._last_received_bid is not None and self._best_received_utility < self.profile.getUtility(
                 self._last_received_bid):
-            self._best_received_utility = self._profile.getProfile().getUtility(self._last_received_bid)
+            self._best_received_utility = self.profile.getUtility(self._last_received_bid)
         # Find the next bid to send
         next_sent_bid = self._findBid()
 
@@ -180,7 +185,7 @@ class Agent18(DefaultParty):
     def _isGood(self, next_sent_bid) -> bool:
         if len(self._received_bids) == 0:
             return False
-        profile = self._profile.getProfile()
+        profile = self.profile
 
         progress = self._progress.get(time.time() * 1000)
 
@@ -195,7 +200,7 @@ class Agent18(DefaultParty):
     # After threshold[7] -> Send bids we received with best utility
     def _findBid(self):
         progress = self._progress.get(time.time() * 1000)
-        profile = self._profile.getProfile()
+        profile = self.profile
         opponent = self._opponent_model
         # Random Walker above specific threshold
         if progress < self.thresholds[4]:
@@ -205,7 +210,7 @@ class Agent18(DefaultParty):
             return self._agreeable()
         # Agent that maximizes the nash product
         if progress < self.thresholds[6]:
-            return self._socialWelfare(lambda x: (self._profile.getProfile().getUtility(x)) * opponent.getUtility(x))
+            return self._socialWelfare(lambda x: (self.profile.getUtility(x)) * opponent.getUtility(x))
         # Send bids that we received and maximize our utility
         return self._sendReceived()
 
@@ -230,7 +235,7 @@ class Agent18(DefaultParty):
     def _agreeable(self) -> Bid:
         # To collect enough data start by sending the best offers for us
         target_utility = min(self.thresholds[2], (1 - self._progress.get(time.time() * 1000)) * self.thresholds[3])
-        profile = self._profile.getProfile()
+        profile = self.profile
         bids = []
         for bid in self._bid_list:
             if profile.getUtility(bid) > target_utility:
@@ -254,7 +259,7 @@ class Agent18(DefaultParty):
     # Used at the very end to get as much as we can from the negotiation
     def _sendReceived(self):
         # Get top 20 received bids and select randomly based on our utility
-        profile = self._profile.getProfile()
+        profile = self.profile
         top_20 = sorted(self._received_bids, key=profile.getUtility, reverse=True)[:20]
         weights = np.array([float(profile.getUtility(bid)) for bid in top_20])
         return random.choices(top_20, k=1, weights=weights / np.sum(weights))[0]
