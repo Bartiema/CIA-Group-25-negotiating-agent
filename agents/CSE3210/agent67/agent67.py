@@ -228,7 +228,7 @@ class Agent67(DefaultParty):
         Checking whether the bid's utility is 
         bove batna utility value.
         """
-        reservation_bid = profile.getReservationBid()
+        reservation_bid = self.profile.getReservationBid()
 
         if reservation_bid is None:
             return True
