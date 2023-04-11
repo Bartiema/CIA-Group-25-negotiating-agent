@@ -53,7 +53,7 @@ class NegotiatingAgent(DefaultParty):
         self.logger.log(logging.INFO, "party is initialized")
 
         self.lowest_bid: float = 1.0
-        self.reservation_value: float = 0.6
+        self.reservation_value: float = 0
         self.bids = None
         self.scores = None
         self.opponent_scores = None
@@ -88,6 +88,12 @@ class NegotiatingAgent(DefaultParty):
             self.profile = profile_connection.getProfile()
             self.domain = self.profile.getDomain()
             profile_connection.close()
+
+            if self.profile.getReservationBid() is not None:
+                reservation_bid = self.profile.getReservationBid()
+                self.reservation_value = self.profile.getUtility(reservation_bid)
+            else:
+                self.reservation_value = 0.0
 
         # ActionDone informs you of an action (an offer or an accept)
         # that is performed by one of the agents (including yourself).
