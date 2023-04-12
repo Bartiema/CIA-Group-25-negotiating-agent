@@ -20,7 +20,7 @@ if not RESULTS_DIR.exists():
 tournament_settings = {
     "agents": [
         {
-            "class": "agents.negotiating_agent.negotiating_agent.NegotiatingAgent",
+            "class": "agents.group25_agent.group25_agent.NegotiatingAgent",
             "parameters": {"storage_dir": "agent_storage/NegotiatingAgent"},
         },
         {
@@ -60,12 +60,14 @@ tournament_settings = {
         {
             "class": "agents.CSE3210.agent14.agent14.Agent14",
         },
-        {
-            "class": "agents.CSE3210.agent18.agent18.Agent18",
-        },
-        {
-            "class": "agents.CSE3210.agent19.agent19.Agent19",
-        },
+        # ERRORS ALOT
+        # {
+        #     "class": "agents.CSE3210.agent18.agent18.Agent18",
+        # },
+        # ERRORS ALOT
+        # {
+        #     "class": "agents.CSE3210.agent19.agent19.Agent19",
+        # },
         {
             "class": "agents.CSE3210.agent22.agent22.Agent22",
         },
@@ -117,31 +119,32 @@ tournament_settings = {
         {
             "class": "agents.CSE3210.agent67.agent67.Agent67",
         },
-        {
-            "class": "agents.CSE3210.agent68.agent68.Agent68",
-        },
+        # ERRORS ALOT
+        # {
+        #     "class": "agents.CSE3210.agent68.agent68.Agent68",
+        # },
     ],
     "profile_sets": [
-        ["domains/domain00/profileA.json", "domains/domain00/profileB.json"],
-        ["domains/domain01/profileA.json", "domains/domain01/profileB.json"],
-        ["domains/domain02/profileA.json", "domains/domain02/profileB.json"],
-        ["domains/domain03/profileA.json", "domains/domain03/profileB.json"],
+        # ["domains/domain00/profileA.json", "domains/domain00/profileB.json"],
+        # ["domains/domain01/profileA.json", "domains/domain01/profileB.json"],
+        # ["domains/domain02/profileA.json", "domains/domain02/profileB.json"],
+        # ["domains/domain03/profileA.json", "domains/domain03/profileB.json"],
         ["domains/domain04/profileA.json", "domains/domain04/profileB.json"],
         ["domains/domain05/profileA.json", "domains/domain05/profileB.json"],
         ["domains/domain06/profileA.json", "domains/domain06/profileB.json"],
         ["domains/domain07/profileA.json", "domains/domain07/profileB.json"],
-        ["domains/domain08/profileA.json", "domains/domain08/profileB.json"],
-        ["domains/domain09/profileA.json", "domains/domain09/profileB.json"],
-        ["domains/domain10/profileA.json", "domains/domain10/profileB.json"],
-        ["domains/domain11/profileA.json", "domains/domain11/profileB.json"],
-        ["domains/domain12/profileA.json", "domains/domain12/profileB.json"],
-        ["domains/domain13/profileA.json", "domains/domain13/profileB.json"],
-        ["domains/domain14/profileA.json", "domains/domain14/profileB.json"],
-        ["domains/domain15/profileA.json", "domains/domain15/profileB.json"],
-        ["domains/domain16/profileA.json", "domains/domain16/profileB.json"],
-        ["domains/domain17/profileA.json", "domains/domain17/profileB.json"],
-        ["domains/domain18/profileA.json", "domains/domain18/profileB.json"],
-        ["domains/domain19/profileA.json", "domains/domain19/profileB.json"],
+        # ["domains/domain08/profileA.json", "domains/domain08/profileB.json"],
+        # ["domains/domain09/profileA.json", "domains/domain09/profileB.json"],
+        # ["domains/domain10/profileA.json", "domains/domain10/profileB.json"],
+        # ["domains/domain11/profileA.json", "domains/domain11/profileB.json"],
+        # ["domains/domain12/profileA.json", "domains/domain12/profileB.json"],
+        # ["domains/domain13/profileA.json", "domains/domain13/profileB.json"],
+        # ["domains/domain14/profileA.json", "domains/domain14/profileB.json"],
+        # ["domains/domain15/profileA.json", "domains/domain15/profileB.json"],
+        # ["domains/domain16/profileA.json", "domains/domain16/profileB.json"],
+        # ["domains/domain17/profileA.json", "domains/domain17/profileB.json"],
+        # ["domains/domain18/profileA.json", "domains/domain18/profileB.json"],
+        # ["domains/domain19/profileA.json", "domains/domain19/profileB.json"],
     ],
     "deadline_time_ms": 1000,
 }
@@ -260,6 +263,6 @@ for stats in our_agent:
         stats["ERROR"]
     ])
 
-with open(RESULTS_DIR.joinpath("our_agent.csv"), "w", newline="") as f:
+with open(RESULTS_DIR.joinpath("our_agent_proper_reservation.csv"), "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerows(our_agent_csv)

@@ -22,7 +22,7 @@ settings = {
             "parameters": {"storage_dir": "agent_storage/DreamTeam109Agent"},
         },
         {
-            "class": "agents.negotiating_agent.negotiating_agent.NegotiatingAgent",
+            "class": "agents.group25_agent.group25_agent.NegotiatingAgent",
             "parameters": {"storage_dir": "agent_storage/NegotiatingAgent"},
         },
     ],
